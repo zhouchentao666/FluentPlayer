@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TideAudio",
+  "version": "0.1.0",
+  "identifier": "com.zhouchentao.tideaudio",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TideAudio",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 620,
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "dragDropEnabled": false,
+        "windowEffects": {
+          "effects": ["acrylic", "mica"]
+        }
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      },
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "copyright": "Copyright © 2026 zhouchentao",
+    "shortDescription": "A pure offline local music player powered by Tauri.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
