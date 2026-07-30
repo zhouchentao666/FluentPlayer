@@ -1,13 +1,16 @@
 <script lang="ts" setup>
 import '@applemusic-like-lyrics/core/style.css'
 import { BackgroundRender as CoreBackgroundRender, PixiRenderer } from '@applemusic-like-lyrics/core'
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onBeforeUnmount, inject, type Ref } from 'vue'
+import type { AppSettings } from '../../composables/useConfig'
 
 const props = defineProps<{
   coverUrl: string | null
   active: boolean
   hasLyrics?: boolean
 }>()
+
+const settings = inject<Ref<AppSettings>>('settings')
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const bgRef = ref<CoreBackgroundRender<PixiRenderer> | undefined>(undefined)
@@ -25,8 +28,8 @@ async function init() {
   containerRef.value.appendChild(canvas)
 
   bgRef.value.setRenderScale(0.5)
-  bgRef.value.setFlowSpeed(1)
-  bgRef.value.setFPS(30)
+  bgRef.value.setFlowSpeed(settings?.value.lyricFlowSpeed ?? 2)
+  bgRef.value.setFPS(settings?.value.lyricFps ?? 30)
   bgRef.value.setHasLyric(props.hasLyrics ?? false)
 
   if (props.coverUrl) {
@@ -60,6 +63,15 @@ watch(
   async (url) => {
     if (!url || !bgRef.value) return
     await bgRef.value.setAlbum(url, false)
+  },
+)
+
+watch(
+  () => [settings?.value.lyricFlowSpeed, settings?.value.lyricFps],
+  () => {
+    if (!bgRef.value) return
+    bgRef.value.setFlowSpeed(settings?.value.lyricFlowSpeed ?? 2)
+    bgRef.value.setFPS(settings?.value.lyricFps ?? 30)
   },
 )
 

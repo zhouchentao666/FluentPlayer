@@ -27,6 +27,14 @@ export interface AppConfig {
     songColorBlur?: number
     fullScreenBackground?: string
     immersivePlayerBar?: boolean
+    lyricFontSize?: number
+    lyricFontFamily?: string
+    lyricAlignAnchor?: string
+    lyricAlignPosition?: number
+    lyricBlur?: boolean
+    lyricSpring?: boolean
+    lyricFlowSpeed?: number
+    lyricFps?: number
     selectedPlaylistId?: string
     playlistSorts?: unknown
     localMetadata?: unknown

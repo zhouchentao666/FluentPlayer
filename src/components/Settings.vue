@@ -1,12 +1,14 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Version } from '@bridge/app'
 import { type AppSettings, HOTKEY_ACTIONS, type HotkeyAction, type DesktopLyricConfig } from '../composables/useConfig'
+import { useFontList } from '../composables/useFontList'
 import SettingCard from './settings/SettingCard.vue'
 import SettingRow from './settings/SettingRow.vue'
 import SegmentedControl from './settings/SegmentedControl.vue'
 import ColorPicker from './settings/ColorPicker.vue'
 import ToggleSwitch from './settings/ToggleSwitch.vue'
+import SettingSlider from './settings/SettingSlider.vue'
 import WindowEffectSettings from './settings/WindowEffectSettings.vue'
 import HotkeyInput from './settings/HotkeyInput.vue'
 import DesktopLyricSettings from './settings/DesktopLyricSettings.vue'
@@ -70,6 +72,20 @@ const coverTransitions = [
   { value: 'slide-left', label: '左边滑入滑出' },
   { value: 'slide-both', label: '左右滑入滑出' },
 ] as const
+
+const alignAnchors = [
+  { value: 'top', label: '顶部' },
+  { value: 'center', label: '居中' },
+  { value: 'bottom', label: '底部' },
+] as const
+
+const { fonts } = useFontList()
+const fontOptions = computed(() => {
+  const list = [...fonts.value]
+  const cur = props.settings.lyricFontFamily
+  if (cur && !list.includes(cur)) list.unshift(cur)
+  return list
+})
 </script>
 
 <template>
@@ -132,6 +148,70 @@ const coverTransitions = [
           <ToggleSwitch
             :model-value="settings.immersivePlayerBar"
             @update:model-value="value => update({ immersivePlayerBar: value })"
+          />
+        </SettingRow>
+        <SettingRow label="歌词文字大小" description="全屏播放器歌词字号（像素）">
+          <SettingSlider
+            :min="12"
+            :max="72"
+            :model-value="settings.lyricFontSize"
+            @update:model-value="value => update({ lyricFontSize: value })"
+          />
+        </SettingRow>
+        <SettingRow label="歌词字体" description="全屏播放器歌词使用的字体（下拉框列出系统全部字体）">
+          <select
+            class="fluent-select"
+            :value="settings.lyricFontFamily"
+            @change="e => update({ lyricFontFamily: (e.target as HTMLSelectElement).value })"
+          >
+            <option value="">跟随系统</option>
+            <option v-for="f in fontOptions" :key="f" :value="f">{{ f }}</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="歌词行对齐方式" description="目标歌词行的对齐锚点：顶部 / 居中 / 底部">
+          <SegmentedControl
+            :options="alignAnchors"
+            :model-value="settings.lyricAlignAnchor"
+            @update:model-value="value => update({ lyricAlignAnchor: value as AppSettings['lyricAlignAnchor'] })"
+          />
+        </SettingRow>
+        <SettingRow label="歌词对齐位置" description="歌词在播放器中的垂直位置（0=顶部，1=底部）">
+          <SettingSlider
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :model-value="settings.lyricAlignPosition"
+            @update:model-value="value => update({ lyricAlignPosition: value })"
+          />
+        </SettingRow>
+        <SettingRow label="歌词行模糊效果" description="为当前/已播放歌词行添加模糊特效">
+          <ToggleSwitch
+            :model-value="settings.lyricBlur"
+            @update:model-value="value => update({ lyricBlur: value })"
+          />
+        </SettingRow>
+        <SettingRow label="物理弹簧动画" description="使用弹簧算法实现歌词动画；性能不足时可关闭以回退到 transition 过渡">
+          <ToggleSwitch
+            :model-value="settings.lyricSpring"
+            @update:model-value="value => update({ lyricSpring: value })"
+          />
+        </SettingRow>
+        <SettingRow label="背景流动速度" description="动态背景的流动速度">
+          <SettingSlider
+            :min="0.5"
+            :max="6"
+            :step="0.5"
+            :model-value="settings.lyricFlowSpeed"
+            @update:model-value="value => update({ lyricFlowSpeed: value })"
+          />
+        </SettingRow>
+        <SettingRow label="背景动画帧率" description="动态背景的渲染帧率">
+          <SettingSlider
+            :min="10"
+            :max="60"
+            :step="5"
+            :model-value="settings.lyricFps"
+            @update:model-value="value => update({ lyricFps: value })"
           />
         </SettingRow>
       </SettingCard>

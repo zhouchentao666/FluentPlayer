@@ -73,6 +73,9 @@ export const Window = {
   SetSize(width: number, height: number): Promise<void> {
     return getCurrentWindow().setSize(new PhysicalSize(Math.round(width), Math.round(height)))
   },
+  StartDragging(): Promise<void> {
+    return getCurrentWindow().startDragging()
+  },
 }
 
 // ---------- 应用 ----------

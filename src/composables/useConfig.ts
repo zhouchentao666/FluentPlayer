@@ -7,6 +7,7 @@ import type { LocalSongMetadata } from './useLocalMetadata'
 export type WindowEffect = 'none' | 'acrylic' | 'custom-image' | 'song-color'
 export type FullScreenBackground = 'static' | 'dynamic'
 export type CoverTransition = 'fade' | 'slide-left' | 'slide-both'
+export type LyricAlignAnchor = 'top' | 'bottom' | 'center'
 export type HotkeyAction = 'togglePlay' | 'prevSong' | 'nextSong' | 'volumeUp' | 'volumeDown' | 'mute' | 'togglePlayerDetail'
 export type DesktopLyricPosition = 'left' | 'center' | 'right' | 'both'
 
@@ -96,6 +97,14 @@ export interface AppSettings {
   fullScreenBackground: FullScreenBackground
   coverTransition: CoverTransition
   immersivePlayerBar: boolean
+  lyricFontSize: number
+  lyricFontFamily: string
+  lyricAlignAnchor: LyricAlignAnchor
+  lyricAlignPosition: number
+  lyricBlur: boolean
+  lyricSpring: boolean
+  lyricFlowSpeed: number
+  lyricFps: number
   hotkeys: Partial<Record<HotkeyAction, string>>
   autoStart: boolean
   trayEnabled: boolean
@@ -192,6 +201,14 @@ export function useConfig(
           fullScreenBackground: (config.settings.fullScreenBackground as FullScreenBackground) || 'static',
           coverTransition: ((config.settings as unknown as Record<string, unknown>).coverTransition as CoverTransition) || 'fade',
           immersivePlayerBar: config.settings.immersivePlayerBar ?? false,
+          lyricFontSize: typeof config.settings.lyricFontSize === 'number' && config.settings.lyricFontSize > 0 ? config.settings.lyricFontSize : 36,
+          lyricFontFamily: typeof config.settings.lyricFontFamily === 'string' ? config.settings.lyricFontFamily : '',
+          lyricAlignAnchor: (config.settings.lyricAlignAnchor as LyricAlignAnchor) || 'center',
+          lyricAlignPosition: typeof config.settings.lyricAlignPosition === 'number' ? Math.min(1, Math.max(0, config.settings.lyricAlignPosition)) : 0.5,
+          lyricBlur: config.settings.lyricBlur ?? true,
+          lyricSpring: config.settings.lyricSpring ?? true,
+          lyricFlowSpeed: typeof config.settings.lyricFlowSpeed === 'number' && config.settings.lyricFlowSpeed > 0 ? config.settings.lyricFlowSpeed : 2,
+          lyricFps: typeof config.settings.lyricFps === 'number' && config.settings.lyricFps > 0 ? config.settings.lyricFps : 30,
           hotkeys: ((config.settings as unknown as Record<string, unknown>).hotkeys as Record<string, string>) || { ...DEFAULT_HOTKEYS },
           autoStart: ((config.settings as unknown as Record<string, unknown>).autoStart as boolean) ?? false,
           trayEnabled: ((config.settings as unknown as Record<string, unknown>).trayEnabled as boolean) ?? false,

@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { SetDesktopLyricBounds, SetDesktopLyricIgnoreMouseEvents } from '@bridge/app'
+import { Window } from '@bridge/runtime'
 import type { DesktopLyricConfig } from './useConfig'
 
 const RESIZE_BORDER = 10
@@ -58,7 +59,11 @@ export function useDesktopLyricWindowControl(config: { value: DesktopLyricConfig
     if (target?.closest('.dl-btn, .dl-play-title')) return
 
     const edge = computeEdge(event.clientX, event.clientY)
-    if (!edge) return // 中心区域由 Wails v3 原生拖拽处理
+    if (!edge) {
+      // 中心区域：发起原生窗口拖拽
+      Window.StartDragging().catch(() => {})
+      return
+    }
 
     resizeState.isResizing = true
     resizeState.resizeEdge = edge

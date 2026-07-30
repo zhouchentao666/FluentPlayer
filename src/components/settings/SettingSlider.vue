@@ -3,6 +3,7 @@ defineProps<{
   label?: string
   min?: number
   max?: number
+  step?: number
   modelValue: number
 }>()
 
@@ -23,6 +24,7 @@ function handleInput(event: Event) {
       class="slider-input"
       :min="min ?? 0"
       :max="max ?? 100"
+      :step="step ?? 1"
       :value="modelValue"
       @input="handleInput"
     />

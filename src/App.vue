@@ -52,6 +52,14 @@ const settings = ref<AppSettings>({
   fullScreenBackground: 'static',
   coverTransition: 'fade',
   immersivePlayerBar: false,
+  lyricFontSize: 36,
+  lyricFontFamily: '',
+  lyricAlignAnchor: 'center',
+  lyricAlignPosition: 0.5,
+  lyricBlur: true,
+  lyricSpring: true,
+  lyricFlowSpeed: 2,
+  lyricFps: 30,
   hotkeys: { ...DEFAULT_HOTKEYS },
   autoStart: false,
   trayEnabled: false,
@@ -68,11 +76,13 @@ const playbackState = ref<ConfigPlayback>({
   time: 0,
 })
 
+// 初始 width/height 为 0，restoreSession 的守卫（width>0）会跳过，
+// 让 Tauri 配置中的 center:true 生效居中，而不是被强制到 (0,0) 左上角。
 const windowState = ref<ConfigWindow>({
   x: 0,
   y: 0,
-  width: 800,
-  height: 600,
+  width: 0,
+  height: 0,
 })
 
 const { playlists, selectedId, updatePlaylists, updatePlaylist, selectPlaylist, addMusicFiles, addMusicFolder, refreshFolder, rewatchFolders, addSongs, replaceSongs } = usePlaylists()

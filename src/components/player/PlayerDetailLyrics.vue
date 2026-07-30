@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import '@applemusic-like-lyrics/core/style.css'
-import { toRaw } from 'vue'
+import { computed, inject, toRaw, type Ref } from 'vue'
 import { LyricPlayer } from '@applemusic-like-lyrics/vue'
 import type { LyricLine, LyricLineMouseEvent } from '@applemusic-like-lyrics/core'
+import type { AppSettings } from '../../composables/useConfig'
 
 const props = defineProps<{
   lyrics: LyricLine[]
@@ -14,6 +15,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   seek: [time: number]
 }>()
+
+// 全屏歌词相关设置由 App.vue 通过 provide('settings') 下发（提供的是 ref）
+const settings = inject<Ref<AppSettings>>('settings')
+
+const lyricStyle = computed(() => ({
+  '--amll-lp-font-size': `${settings?.value.lyricFontSize ?? 36}px`,
+  fontFamily: settings?.value.lyricFontFamily ? settings.value.lyricFontFamily : 'inherit',
+}))
 
 function onLineClick(e: LyricLineMouseEvent) {
   emit('seek', e.line.getLine().startTime / 1000)
@@ -32,7 +41,11 @@ function onLineClick(e: LyricLineMouseEvent) {
       :current-time="currentTime"
       :playing="isPlaying"
       :word-fade-width="0.5"
-      :align-position="0.5"
+      :align-anchor="settings?.lyricAlignAnchor ?? 'center'"
+      :align-position="settings?.lyricAlignPosition ?? 0.5"
+      :enable-blur="settings?.lyricBlur ?? true"
+      :enable-spring="settings?.lyricSpring ?? true"
+      :style="lyricStyle"
       @line-click="onLineClick"
     />
     <div

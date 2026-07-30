@@ -125,7 +125,6 @@ onBeforeUnmount(() => {
       'no-animation': !config.animation,
     }"
     :style="{ cursor: cursorStyle, '--mask-bg': config.backgroundMaskColor }"
-    data-tauri-drag-region
   >
     <DesktopLyricControls
       :song-name="lyricData.playName"
