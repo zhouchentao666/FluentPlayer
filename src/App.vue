@@ -226,6 +226,7 @@ function buildTraySongLabel(song: Song | null): string {
 }
 
 function syncTraySongInfo() {
+  if (isMobile.value) return
   if (!settings.value.trayEnabled) return
   SetTraySongInfo(buildTraySongLabel(audio.currentSong.value)).catch(() => {})
 }
@@ -317,6 +318,7 @@ let traySyncId = 0
 let traySyncQueue = Promise.resolve()
 
 function syncTraySettings() {
+  if (isMobile.value) return
   if (isLoading.value) return
 
   const syncId = ++traySyncId
@@ -337,6 +339,7 @@ function syncTraySettings() {
 }
 
 watch(() => settings.value.autoStart, (enabled) => {
+  if (isMobile.value) return
   ApplyAutoStart(enabled).catch(() => {})
 })
 
@@ -357,8 +360,10 @@ onMounted(async () => {
   await rewatchFolders()
   await restoreSession()
 
-  ApplyAutoStart(settings.value.autoStart).catch(() => {})
-  syncTraySettings()
+  if (!isMobile.value) {
+    ApplyAutoStart(settings.value.autoStart).catch(() => {})
+    syncTraySettings()
+  }
   await openIfEnabled()
 
   window.addEventListener('keydown', handleHotkey)

@@ -1,4 +1,5 @@
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt;
 
 /// 在资源管理器中定位文件
@@ -42,6 +43,7 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+#[cfg(desktop)]
 pub fn show_main(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.show();
@@ -50,12 +52,14 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub fn show_main_window(app: AppHandle) {
     show_main(&app);
 }
 
 /// 开机自启动开关
+#[cfg(desktop)]
 #[tauri::command]
 pub fn apply_auto_start(app: AppHandle, enabled: bool) -> Result<(), String> {
     let manager = app.autolaunch();
@@ -75,6 +79,7 @@ pub fn emit_metadata_changed(app: AppHandle) -> Result<(), String> {
 }
 
 /// 打开歌曲信息编辑器窗口
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String> {
     const LABEL: &str = "editor";
@@ -96,5 +101,6 @@ pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String
 }
 
 /// 关闭到托盘偏好（前端在关闭时自行处理隐藏逻辑，这里仅保留兼容命令）
+#[cfg(desktop)]
 #[tauri::command]
 pub fn set_close_to_tray(_enabled: bool) {}
