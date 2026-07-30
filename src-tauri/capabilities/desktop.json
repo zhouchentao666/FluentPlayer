@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
   "description": "TideAudio 桌面端专属能力：自启动、托盘，以及编辑器/桌面歌词窗口",
-  "platforms": ["linux", "macos", "windows"],
+  "platforms": ["linux", "macOS", "windows"],
   "windows": ["main", "editor", "desktop-lyric"],
   "permissions": [
     "autostart:allow-enable",
