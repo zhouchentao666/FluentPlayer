@@ -159,7 +159,7 @@ jobs:
               --key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
               --key-password "${{ secrets.ANDROID_KEY_PASSWORD }}"
           else
-            npm run tauri -- android build --target aarch64-linux-android --apk --debug
+            npm run tauri -- android build --target aarch64 --apk --debug
           fi
 
       - name: Upload APK
@@ -212,11 +212,11 @@ jobs:
       - name: Build iOS app
         run: |
           if [ -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
-            npm run tauri -- ios build --target aarch64-apple-ios \
+            npm run tauri -- ios build --target aarch64 \
               --export-method app-store \
               --development-team "${{ secrets.APPLE_TEAM_ID }}"
           else
-            npm run tauri -- ios build --target aarch64-apple-ios-sim --debug
+            npm run tauri -- ios build --target aarch64-sim --debug
           fi
 
       - name: Upload iOS app
