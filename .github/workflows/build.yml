@@ -9,8 +9,14 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+  NDK_VERSION: "27.0.12077973"
+  JAVA_VERSION: "17"
+
 jobs:
-  build:
+  # ---------- 桌面端：Windows / Linux / macOS ----------
+  desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +59,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # Tag push -> build and publish a GitHub release
+      # Tag push -> build and publish a GitHub release (desktop only)
       - name: Build (release)
         if: startsWith(github.ref, 'refs/tags/')
         uses: tauri-apps/tauri-action@v0
@@ -75,6 +81,149 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
-          name: tideaudio-${{ matrix.platform }}
+          name: tideaudio-desktop-${{ matrix.platform }}
           path: src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+
+  # ---------- 安卓：APK ----------
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain (with android target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK & build-tools
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "ndk;${{ env.NDK_VERSION }}" "build-tools;34.0.0" "platforms;android-34"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> "$GITHUB_ENV"
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/
+            ~/.gradle/wrapper/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Init Tauri Android project
+        run: npm run tauri android init
+
+      # 未配置签名密钥时构建未签名 debug APK；配置后构建 release 签名包
+      - name: Build Android APK
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+            npm run tauri -- android build \
+              --target aarch64-linux-android --apk \
+              --keystore-path "$PWD/keystore.jks" \
+              --keystore-password "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+              --key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+              --key-password "${{ secrets.ANDROID_KEY_PASSWORD }}"
+          else
+            npm run tauri -- android build --target aarch64-linux-android --apk --debug
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tideaudio-android
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+  # ---------- iOS：.app（模拟器/真机） ----------
+  ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcodebuild -license accept
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain (with iOS targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-ios-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ios-
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Init Tauri iOS project
+        run: npm run tauri ios init
+
+      # 无 Apple 签名证书：构建模拟器 .app 验证可编译；配置证书后可改真机目标并签名导出 IPA
+      - name: Build iOS app
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
+            npm run tauri -- ios build --target aarch64-apple-ios \
+              --export-method app-store \
+              --development-team "${{ secrets.APPLE_TEAM_ID }}"
+          else
+            npm run tauri -- ios build --target aarch64-apple-ios-sim --debug
+          fi
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: tideaudio-ios
+          path: |
+            src-tauri/target/aarch64-apple-ios-sim/debug/*.app
+            src-tauri/gen/ios/build/**/*.app
           if-no-files-found: error
