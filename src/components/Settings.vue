@@ -201,7 +201,7 @@ const fontOptions = computed(() => {
         <SettingRow label="背景动画帧率" description="动态背景的渲染帧率">
           <SettingSlider
             :min="10"
-            :max="60"
+            :max="360"
             :step="5"
             :model-value="settings.lyricFps"
             @update:model-value="value => update({ lyricFps: value })"

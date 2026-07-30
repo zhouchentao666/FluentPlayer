@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { Song } from '../types'
 import { OpenImageFile, ReadImageFile, ReadLyrics } from '@bridge/app'
 import { localMetadata, setLocalMetadata } from '../composables/useLocalMetadata'
@@ -101,6 +101,45 @@ function handleBackdropClick() {
   emit('close')
 }
 
+// 拖拽：以标题栏为拖拽手柄，移动整个模态框（相对初始居中位置的偏移）
+const dragOffset = ref({ x: 0, y: 0 })
+let dragging = false
+let startX = 0
+let startY = 0
+let startOffsetX = 0
+let startOffsetY = 0
+
+function onHeaderPointerDown(e: PointerEvent) {
+  // 点击关闭按钮时不触发拖拽
+  if ((e.target as HTMLElement).closest('.close-btn')) return
+  dragging = true
+  startX = e.clientX
+  startY = e.clientY
+  startOffsetX = dragOffset.value.x
+  startOffsetY = dragOffset.value.y
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!dragging) return
+  dragOffset.value = {
+    x: startOffsetX + (e.clientX - startX),
+    y: startOffsetY + (e.clientY - startY),
+  }
+}
+
+function onPointerUp() {
+  dragging = false
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+})
+
 nextTick(() => {
   const input = document.querySelector('.editor-modal input') as HTMLInputElement | null
   input?.focus()
@@ -109,8 +148,12 @@ nextTick(() => {
 
 <template>
   <div class="editor-overlay" @click="handleBackdropClick">
-    <div class="editor-modal" @click.stop>
-      <div class="editor-header">
+    <div
+      class="editor-modal"
+      :style="{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }"
+      @click.stop
+    >
+      <div class="editor-header" @pointerdown="onHeaderPointerDown">
         <div>
           <h2>编辑歌曲信息</h2>
           <p class="header-hint">修改仅保存在本地，不会覆盖原歌曲文件元数据。</p>
@@ -194,6 +237,8 @@ nextTick(() => {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--fluent-border);
+  cursor: move;
+  user-select: none;
 }
 
 .editor-header h2 {
