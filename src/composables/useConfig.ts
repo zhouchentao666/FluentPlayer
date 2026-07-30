@@ -7,7 +7,6 @@ import type { LocalSongMetadata } from './useLocalMetadata'
 export type WindowEffect = 'none' | 'acrylic' | 'custom-image' | 'song-color'
 export type FullScreenBackground = 'static' | 'dynamic'
 export type CoverTransition = 'fade' | 'slide-left' | 'slide-both'
-export type LyricAlignAnchor = 'top' | 'bottom' | 'center'
 export type HotkeyAction = 'togglePlay' | 'prevSong' | 'nextSong' | 'volumeUp' | 'volumeDown' | 'mute' | 'togglePlayerDetail'
 export type DesktopLyricPosition = 'left' | 'center' | 'right' | 'both'
 
@@ -99,8 +98,8 @@ export interface AppSettings {
   immersivePlayerBar: boolean
   lyricFontSize: number
   lyricFontFamily: string
-  lyricAlignAnchor: LyricAlignAnchor
   lyricAlignPosition: number
+  lyricFontSizeAdaptive: boolean
   lyricBlur: boolean
   lyricSpring: boolean
   lyricFlowSpeed: number
@@ -203,8 +202,8 @@ export function useConfig(
           immersivePlayerBar: config.settings.immersivePlayerBar ?? false,
           lyricFontSize: typeof config.settings.lyricFontSize === 'number' && config.settings.lyricFontSize > 0 ? config.settings.lyricFontSize : 36,
           lyricFontFamily: typeof config.settings.lyricFontFamily === 'string' ? config.settings.lyricFontFamily : '',
-          lyricAlignAnchor: (config.settings.lyricAlignAnchor as LyricAlignAnchor) || 'center',
           lyricAlignPosition: typeof config.settings.lyricAlignPosition === 'number' ? Math.min(1, Math.max(0, config.settings.lyricAlignPosition)) : 0.5,
+          lyricFontSizeAdaptive: config.settings.lyricFontSizeAdaptive === true,
           lyricBlur: config.settings.lyricBlur ?? true,
           lyricSpring: config.settings.lyricSpring ?? true,
           lyricFlowSpeed: typeof config.settings.lyricFlowSpeed === 'number' && config.settings.lyricFlowSpeed > 0 ? config.settings.lyricFlowSpeed : 2,

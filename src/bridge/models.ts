@@ -29,8 +29,8 @@ export interface AppConfig {
     immersivePlayerBar?: boolean
     lyricFontSize?: number
     lyricFontFamily?: string
-    lyricAlignAnchor?: string
     lyricAlignPosition?: number
+    lyricFontSizeAdaptive?: boolean
     lyricBlur?: boolean
     lyricSpring?: boolean
     lyricFlowSpeed?: number

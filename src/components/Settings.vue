@@ -73,12 +73,6 @@ const coverTransitions = [
   { value: 'slide-both', label: '左右滑入滑出' },
 ] as const
 
-const alignAnchors = [
-  { value: 'top', label: '顶部' },
-  { value: 'center', label: '居中' },
-  { value: 'bottom', label: '底部' },
-] as const
-
 const { fonts } = useFontList()
 const fontOptions = computed(() => {
   const list = [...fonts.value]
@@ -158,6 +152,12 @@ const fontOptions = computed(() => {
             @update:model-value="value => update({ lyricFontSize: value })"
           />
         </SettingRow>
+        <SettingRow label="歌词大小自适应" description="开启后，非全屏状态下歌词字号自动缩小，便于小窗阅读">
+          <ToggleSwitch
+            :model-value="settings.lyricFontSizeAdaptive"
+            @update:model-value="value => update({ lyricFontSizeAdaptive: value })"
+          />
+        </SettingRow>
         <SettingRow label="歌词字体" description="全屏播放器歌词使用的字体（下拉框列出系统全部字体）">
           <select
             class="fluent-select"
@@ -167,13 +167,6 @@ const fontOptions = computed(() => {
             <option value="">跟随系统</option>
             <option v-for="f in fontOptions" :key="f" :value="f">{{ f }}</option>
           </select>
-        </SettingRow>
-        <SettingRow label="歌词行对齐方式" description="目标歌词行的对齐锚点：顶部 / 居中 / 底部">
-          <SegmentedControl
-            :options="alignAnchors"
-            :model-value="settings.lyricAlignAnchor"
-            @update:model-value="value => update({ lyricAlignAnchor: value as AppSettings['lyricAlignAnchor'] })"
-          />
         </SettingRow>
         <SettingRow label="歌词对齐位置" description="歌词在播放器中的垂直位置（0=顶部，1=底部）">
           <SettingSlider

@@ -10,6 +10,7 @@ const props = defineProps<{
   currentTime: number
   show: boolean
   isPlaying: boolean
+  isFullscreen: boolean
 }>()
 
 const emit = defineEmits<{
@@ -19,8 +20,19 @@ const emit = defineEmits<{
 // 全屏歌词相关设置由 App.vue 通过 provide('settings') 下发（提供的是 ref）
 const settings = inject<Ref<AppSettings>>('settings')
 
+// 自适应：开启后，非全屏（窗口未进入系统全屏）状态下歌词字号自动缩小
+const NON_FULLSCREEN_SCALE = 0.6
+
+const effectiveFontSize = computed(() => {
+  const base = settings?.value.lyricFontSize ?? 36
+  if (settings?.value.lyricFontSizeAdaptive && !props.isFullscreen) {
+    return Math.max(12, Math.round(base * NON_FULLSCREEN_SCALE))
+  }
+  return base
+})
+
 const lyricStyle = computed(() => ({
-  '--amll-lp-font-size': `${settings?.value.lyricFontSize ?? 36}px`,
+  '--amll-lp-font-size': `${effectiveFontSize.value}px`,
   fontFamily: settings?.value.lyricFontFamily ? settings.value.lyricFontFamily : 'inherit',
 }))
 
@@ -41,7 +53,6 @@ function onLineClick(e: LyricLineMouseEvent) {
       :current-time="currentTime"
       :playing="isPlaying"
       :word-fade-width="0.5"
-      :align-anchor="settings?.lyricAlignAnchor ?? 'center'"
       :align-position="settings?.lyricAlignPosition ?? 0.5"
       :enable-blur="settings?.lyricBlur ?? true"
       :enable-spring="settings?.lyricSpring ?? true"

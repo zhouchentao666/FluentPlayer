@@ -135,6 +135,7 @@ watch(() => props.show, (visible) => {
         :current-time="props.currentTime"
         :show="showLyrics && !props.hideLyrics"
         :is-playing="props.isPlaying"
+        :is-fullscreen="isFullscreen"
         @seek="emit('seek', $event)"
       />
     </div>
