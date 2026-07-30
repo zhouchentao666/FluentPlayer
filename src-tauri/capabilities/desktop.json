@@ -1,16 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "TideAudio 默认能力（跨平台：主窗口与核心/对话框/打开器权限）",
-  "windows": ["main"],
+  "identifier": "desktop",
+  "description": "TideAudio 桌面端专属能力：自启动、托盘，以及编辑器/桌面歌词窗口",
+  "platforms": ["linux", "macos", "windows"],
+  "windows": ["main", "editor", "desktop-lyric"],
   "permissions": [
-    "core:default",
-    "core:event:default",
-    "core:event:allow-emit",
-    "core:event:allow-listen",
-    "core:event:allow-unlisten",
-    "core:event:allow-emit-to",
-    "core:window:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "core:tray:default",
     "core:window:allow-minimize",
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
@@ -28,8 +26,6 @@
     "core:window:allow-set-focus",
     "core:window:allow-start-dragging",
     "core:window:allow-set-ignore-cursor-events",
-    "core:webview:default",
-    "dialog:default",
-    "opener:default"
+    "core:webview:default"
   ]
 }
