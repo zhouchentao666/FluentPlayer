@@ -26,6 +26,7 @@ import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
 import { useDesktopLyricBridge } from './composables/useDesktopLyricBridge'
 import { useDesktopLyric } from './composables/useDesktopLyric'
+import { useIsMobile } from './composables/useIsMobile'
 import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
@@ -37,6 +38,9 @@ const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
 const showQueue = ref(false)
 const playMode = ref<PlayMode>('sequential')
+// 侧栏默认折叠：桌面端为窄栏（rail），移动端为抽屉（默认关闭）
+const sidebarCollapsed = ref(true)
+const { isMobile } = useIsMobile()
 const settings = ref<AppSettings>({
   theme: 'system',
   accentColor: '#0078d4',
@@ -83,6 +87,12 @@ const { save, load } = useConfig(playlists, settings, playbackState, isLoading)
 
 // 提供 settings 给子组件使用（使用 computed 保持响应性）
 provide('settings', settings)
+// 提供移动端状态给子组件
+provide('isMobile', isMobile)
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
 
 const audio = useAudioPlayer({
   audioRef,
@@ -224,6 +234,8 @@ function onSelectPlaylist(id: string) {
   selectPlaylist(id)
   settings.value.selectedPlaylistId = id
   view.value = 'main'
+  // 移动端选中歌单后自动收起抽屉
+  if (isMobile.value) sidebarCollapsed.value = true
 }
 
 watch(selectedId, (id) => {
@@ -385,7 +397,9 @@ onUnmounted(() => {
 <template>
   <div
     class="glass"
+    :class="{ mobile: isMobile }"
     :data-theme="settings.theme"
+    :data-mobile="isMobile ? 'true' : 'false'"
     :style="appStyle"
   >
     <div
@@ -393,14 +407,17 @@ onUnmounted(() => {
       class="window-bg-layer"
       :style="layerStyle"
     ></div>
-    <TitleBar @close="handleClose" />
+    <TitleBar @close="handleClose" @toggle-sidebar="toggleSidebar" />
     <div class="content">
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
         :active-view="view"
+        :collapsed="sidebarCollapsed"
+        :is-mobile="isMobile"
         @update:playlists="updatePlaylists"
         @update:selected-id="selectedId = $event"
+        @update:collapsed="sidebarCollapsed = $event"
         @open-settings="view = 'settings'"
         @select="onSelectPlaylist"
         @drop-songs="handleDropSongs"
@@ -491,6 +508,7 @@ onUnmounted(() => {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   color: var(--fluent-text);

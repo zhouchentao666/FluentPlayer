@@ -229,4 +229,15 @@ const topChromeLeave = () => emit('topChromeLeave')
 .opacity-0 {
   opacity: 0;
 }
+
+/* 移动端隐藏桌面窗口控制按钮（最小化/最大化/全屏/置顶/关闭应用） */
+@media (max-width: 820px) {
+  .chrome-right {
+    display: none;
+  }
+
+  .chrome-left .win-btn:nth-child(2) {
+    display: none;
+  }
+}
 </style>

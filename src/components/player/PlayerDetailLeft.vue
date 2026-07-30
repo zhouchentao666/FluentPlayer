@@ -55,6 +55,7 @@ defineExpose({ detailCoverRef })
         :class="[
           props.isExpanded ? 'expanded' : 'collapsed',
           props.showLyrics ? 'with-lyrics' : 'center',
+          { 'lyrics-visible': props.showLyrics },
         ]"
         @click="toggleLyrics"
         @mousemove="onMouseMove"
@@ -180,5 +181,27 @@ defineExpose({ detailCoverRef })
   z-index: 5;
   opacity: 0.85;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+}
+
+/* 移动端（竖屏）Apple Music 风格：封面大图居中偏上 */
+@media (max-width: 820px) {
+  .cover-container.expanded {
+    --cover-size: min(72vw, 320px);
+    top: calc(12vh + env(safe-area-inset-top, 0px));
+    left: calc(50% - var(--cover-size) / 2);
+    width: var(--cover-size);
+    border-radius: 18px;
+  }
+
+  .cover-container.expanded.center,
+  .cover-container.expanded.with-lyrics {
+    left: calc(50% - var(--cover-size) / 2);
+  }
+
+  /* 歌词显示时隐藏封面，让歌词全屏展示 */
+  .cover-container.lyrics-visible {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 </style>

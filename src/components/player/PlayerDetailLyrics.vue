@@ -120,4 +120,20 @@ function onLineClick(e: LyricLineMouseEvent) {
   font-size: 16px;
   color: rgba(255, 255, 255, 0.45);
 }
+
+/* 移动端：歌词铺满全屏，居中显示 */
+@media (max-width: 820px) {
+  .lyrics-panel {
+    width: 100%;
+    left: 0;
+    right: 0;
+    padding: calc(14vh + env(safe-area-inset-top, 0px)) 24px calc(140px + env(safe-area-inset-bottom, 0px));
+    justify-content: center;
+  }
+
+  .lyric-player {
+    max-width: 100%;
+    height: 100%;
+  }
+}
 </style>

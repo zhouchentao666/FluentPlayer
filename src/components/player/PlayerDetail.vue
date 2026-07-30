@@ -138,6 +138,17 @@ watch(() => props.show, (visible) => {
         :is-fullscreen="isFullscreen"
         @seek="emit('seek', $event)"
       />
+
+      <button
+        v-if="showLyrics && hasLyrics"
+        class="mobile-lyrics-close"
+        title="返回封面"
+        @click="showLyrics = false"
+      >
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -153,6 +164,7 @@ watch(() => props.show, (visible) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   font-family: sans-serif;
   user-select: none;
@@ -169,7 +181,33 @@ watch(() => props.show, (visible) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
+}
+
+.mobile-lyrics-close {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 12px;
+  z-index: 90;
+  width: 40px;
+  height: 40px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@media (max-width: 820px) {
+  .mobile-lyrics-close {
+    display: flex;
+  }
 }
 
 .bg-wrapper {
