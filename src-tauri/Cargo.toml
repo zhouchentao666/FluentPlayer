@@ -28,11 +28,6 @@ encoding_rs = "0.8"
 notify = "6"
 urlencoding = "2"
 
-# 说明：autostart / single-instance 作为普通依赖（移动端也能编译，只是其
-# init / MacosLauncher / ManagerExt 等为 #[cfg(desktop)]，本仓库相关调用已用
-# cfg(desktop) 隔离）。这样 tauri-build 才能在所有平台发现它们的权限文件，
-# capabilities 校验不会报 “autostart:allow-enable not found”。
-
 [profile.release]
 panic = "abort"
 codegen-units = 1

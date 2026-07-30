@@ -4,7 +4,6 @@ import { Window, System } from '@bridge/runtime'
 
 const emit = defineEmits<{
   close: []
-  toggleSidebar: []
 }>()
 
 const isMaximised = ref(false)
@@ -36,11 +35,6 @@ onMounted(async () => {
 
 <template>
   <div class="title-bar" data-tauri-drag-region @dblclick="toggleMaximise">
-    <button class="menu-btn" title="菜单" @click="emit('toggleSidebar')">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-        <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
-      </svg>
-    </button>
     <div class="title" data-tauri-drag-region>tideaudio</div>
     <div class="drag-region" data-tauri-drag-region></div>
     <div class="window-controls">
@@ -100,34 +94,6 @@ onMounted(async () => {
   font-weight: 600;
   white-space: nowrap;
   opacity: 0.95;
-}
-
-.menu-btn {
-  width: 30px;
-  height: 26px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  border-radius: 6px;
-  margin-right: 4px;
-}
-
-.menu-btn:hover {
-  background: var(--fluent-bg-hover);
-}
-
-@media (max-width: 820px) {
-  .menu-btn {
-    display: flex;
-  }
-
-  .window-controls {
-    display: none;
-  }
 }
 
 .drag-region {

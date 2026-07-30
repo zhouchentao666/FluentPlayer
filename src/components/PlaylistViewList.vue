@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, inject, ref, type Ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Playlist, Song } from '../types'
 import type { SortMode } from '../composables/usePlaylistView'
 import { OpenInExplorer, OpenSongEditor } from '@bridge/app'
@@ -20,8 +20,6 @@ const props = defineProps<{
   sortMode: SortMode
   searchQuery?: string
 }>()
-
-const isMobile = inject<Ref<boolean>>('isMobile', ref(false))
 
 const emit = defineEmits<{
   play: [song: Song]
@@ -121,7 +119,7 @@ function closeMenu() {
 }
 
 function openEditor() {
-  if (contextSong.value && !isMobile.value) OpenSongEditor(contextSong.value.path)
+  if (contextSong.value) OpenSongEditor(contextSong.value.path)
   closeMenu()
 }
 

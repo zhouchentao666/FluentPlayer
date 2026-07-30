@@ -193,22 +193,6 @@ function handleAddToQueue(song: Song) {
   border-bottom: 1px solid var(--fluent-border);
 }
 
-@media (max-width: 820px) {
-  .playlist-header {
-    padding: 14px 16px;
-    gap: 10px;
-  }
-
-  .playlist-title h1 {
-    font-size: 18px;
-  }
-
-  .playlist-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-}
-
 .playlist-title {
   min-width: 0;
 }

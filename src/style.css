@@ -79,18 +79,8 @@ body {
 
 #app {
     height: 100vh;
-    height: 100dvh;
     text-align: left;
     background-color: transparent;
-}
-
-/* 移动端：透明窗口在手机上无背景，给一个不透明的深色底，避免透出系统桌面 */
-@media (max-width: 820px) {
-    html,
-    body,
-    #app {
-        background-color: #0b0b0f;
-    }
 }
 
 button, input, select {
