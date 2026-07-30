@@ -1,15 +1,19 @@
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue'
-import { Events, Window } from '@bridge/runtime'
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { LoadConfig, SaveConfig, ReadMetadata, ReadLyrics, OpenImageFile, ReadImageFile, EmitMetadataChanged } from '@bridge/app'
 import type { AppConfig } from '@bridge/models'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
-import type { Song, SongMetadata } from './types'
 
-const song = ref<Song | null>(null)
+const props = defineProps<{
+  path: string
+}>()
+
+const emit = defineEmits<{
+  close: []
+}>()
+
 const loading = ref(true)
 const error = ref('')
-const theme = ref<'system' | 'light' | 'dark'>('system')
 
 const title = ref('')
 const artist = ref('')
@@ -24,15 +28,6 @@ const defaultTitle = ref('')
 const defaultArtist = ref('')
 const defaultAlbum = ref('')
 const defaultLyrics = ref('')
-
-const effectiveTheme = computed(() => {
-  if (theme.value === 'system') {
-    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-  }
-  return theme.value
-})
-
-const bgColor = computed(() => effectiveTheme.value === 'light' ? '#ffffff' : '#000000')
 
 const lyricsFormats = [
   { value: 'auto', label: '自动检测', desc: '自动识别歌词格式' },
@@ -53,34 +48,10 @@ function pathToTitle(path: string): string {
   return path.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '') ?? path
 }
 
-async function loadSong(path: string): Promise<Song> {
-  let metadata: SongMetadata | undefined
-  try {
-    const meta = await ReadMetadata(path)
-    metadata = {
-      title: meta.title ?? '',
-      artist: meta.artist ?? '',
-      album: meta.album ?? '',
-      genre: meta.genre ?? '',
-      year: meta.year ?? '',
-      duration: meta.duration ?? 0,
-      bitrate: meta.bitrate ?? 0,
-    }
-  } catch {
-    metadata = undefined
-  }
-  return {
-    id: 'editor',
-    path,
-    title: metadata?.title || pathToTitle(path),
-    metadata,
-  }
-}
-
-function setDefaults(song: Song) {
-  defaultTitle.value = song.metadata?.title ?? song.title ?? ''
-  defaultArtist.value = song.metadata?.artist ?? ''
-  defaultAlbum.value = song.metadata?.album ?? ''
+function setDefaults(meta: { title?: string; artist?: string; album?: string } | undefined) {
+  defaultTitle.value = meta?.title ?? pathToTitle(props.path)
+  defaultArtist.value = meta?.artist ?? ''
+  defaultAlbum.value = meta?.album ?? ''
 }
 
 async function loadDefaultLyrics(path: string) {
@@ -91,12 +62,23 @@ async function loadDefaultLyrics(path: string) {
   }
 }
 
-async function loadFromMetadata(song: Song) {
+async function loadFromMetadata(path: string) {
   isLoadingDefaults.value = true
-  setDefaults(song)
-  await loadDefaultLyrics(song.path)
+  let metadata: { title?: string; artist?: string; album?: string } | undefined
+  try {
+    const meta = await ReadMetadata(path)
+    metadata = {
+      title: meta.title ?? '',
+      artist: meta.artist ?? '',
+      album: meta.album ?? '',
+    }
+  } catch {
+    metadata = undefined
+  }
+  setDefaults(metadata)
+  await loadDefaultLyrics(path)
   isLoadingDefaults.value = false
-  const override = localMetadata.value[song.path]
+  const override = localMetadata.value[path]
   title.value = override?.title ?? defaultTitle.value
   artist.value = override?.artist ?? defaultArtist.value
   album.value = override?.album ?? defaultAlbum.value
@@ -137,8 +119,6 @@ function restoreDefaults() {
 }
 
 async function save() {
-  if (!song.value) return
-  const path = song.value.path
   const newMeta: LocalSongMetadata = {
     title: changed(title.value, defaultTitle.value),
     artist: changed(artist.value, defaultArtist.value),
@@ -148,7 +128,7 @@ async function save() {
     lyricsFormat: lyricsFormat.value === 'auto' ? undefined : lyricsFormat.value,
   }
   // 合并更新，确保 Vue 响应式检测
-  const existing = localMetadata.value[path] || {}
+  const existing = localMetadata.value[props.path] || {}
   const merged = { ...existing, ...newMeta }
   // 移除 undefined 字段
   const keys: (keyof LocalSongMetadata)[] = ['title', 'artist', 'album', 'cover', 'lyrics', 'lyricsFormat']
@@ -157,7 +137,7 @@ async function save() {
       delete merged[key]
     }
   }
-  localMetadata.value = { ...localMetadata.value, [path]: merged }
+  localMetadata.value = { ...localMetadata.value, [props.path]: merged }
 
   try {
     const config = await LoadConfig()
@@ -175,32 +155,60 @@ async function save() {
   } catch {
     // ignore save errors
   }
-  close()
+  emit('close')
 }
 
 function close() {
-  Window.Close().catch(() => window.close())
+  emit('close')
 }
 
-onMounted(async () => {
-  const params = new URLSearchParams(window.location.search)
-  const path = params.get('path') || ''
-  if (!path) {
-    error.value = '未指定歌曲路径'
-    loading.value = false
-    return
+// 拖拽：以标题栏为拖拽手柄，移动整个浮窗（相对居中位置的偏移）
+const dragOffset = ref({ x: 0, y: 0 })
+let dragging = false
+let startX = 0
+let startY = 0
+let startOffsetX = 0
+let startOffsetY = 0
+
+function onHeaderPointerDown(e: PointerEvent) {
+  // 点击关闭按钮时不触发拖拽
+  if ((e.target as HTMLElement).closest('.close-btn')) return
+  dragging = true
+  startX = e.clientX
+  startY = e.clientY
+  startOffsetX = dragOffset.value.x
+  startOffsetY = dragOffset.value.y
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!dragging) return
+  dragOffset.value = {
+    x: startOffsetX + (e.clientX - startX),
+    y: startOffsetY + (e.clientY - startY),
   }
+}
+
+function onPointerUp() {
+  dragging = false
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+})
+
+onMounted(async () => {
   try {
     const config = await LoadConfig()
     if (config.settings?.localMetadata) {
       localMetadata.value = { ...config.settings.localMetadata as Record<string, LocalSongMetadata> }
     }
-    if (config.settings?.theme) {
-      theme.value = config.settings.theme as 'system' | 'light' | 'dark'
-    }
-    song.value = await loadSong(path)
-    await loadFromMetadata(song.value)
-  } catch (e) {
+    await loadFromMetadata(props.path)
+  } catch {
     error.value = '加载歌曲信息失败'
   } finally {
     loading.value = false
@@ -209,15 +217,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div
-    class="editor-root"
-    :data-theme="effectiveTheme"
-    :style="{ backgroundColor: bgColor }"
-  >
-    <div v-if="loading" class="state">加载中...</div>
-    <div v-else-if="error" class="state">{{ error }}</div>
-    <template v-else-if="song">
-      <div class="editor-header">
+  <div class="editor-float">
+    <div class="editor-backdrop" @click="close"></div>
+    <div
+      class="editor-window"
+      :style="{ transform: `translate(-50%, -50%) translate(${dragOffset.x}px, ${dragOffset.y}px)` }"
+      @click.stop
+    >
+      <div class="editor-header" @pointerdown="onHeaderPointerDown">
         <div>
           <h2>编辑歌曲信息</h2>
           <p class="header-hint">修改仅保存在本地，不会覆盖原歌曲文件元数据。</p>
@@ -225,66 +232,90 @@ onMounted(async () => {
         <button class="close-btn" @click="close">✕</button>
       </div>
 
-      <div class="editor-body">
-        <label class="field">
-          <span class="label">标题</span>
-          <input v-model="title" type="text" placeholder="歌曲标题" />
-        </label>
+      <div v-if="loading" class="state">加载中...</div>
+      <div v-else-if="error" class="state">{{ error }}</div>
+      <template v-else>
+        <div class="editor-body">
+          <label class="field">
+            <span class="label">标题</span>
+            <input v-model="title" type="text" placeholder="歌曲标题" />
+          </label>
 
-        <label class="field">
-          <span class="label">艺术家</span>
-          <input v-model="artist" type="text" placeholder="艺术家" />
-        </label>
+          <label class="field">
+            <span class="label">艺术家</span>
+            <input v-model="artist" type="text" placeholder="艺术家" />
+          </label>
 
-        <label class="field">
-          <span class="label">专辑</span>
-          <input v-model="album" type="text" placeholder="专辑" />
-        </label>
+          <label class="field">
+            <span class="label">专辑</span>
+            <input v-model="album" type="text" placeholder="专辑" />
+          </label>
 
-        <label class="field">
-          <span class="label">封面</span>
-          <div class="cover-field">
-            <input v-model="cover" type="text" placeholder="图片地址或点击下方按钮选择" readonly />
-            <button type="button" :disabled="isLoadingCover" @click="selectCover">
-              {{ isLoadingCover ? '...' : '选择' }}
-            </button>
-          </div>
-          <div v-if="cover" class="cover-preview">
-            <img :src="cover" alt="cover" />
-            <button type="button" class="clear-cover" @click="clearCover">清除</button>
-          </div>
-        </label>
+          <label class="field">
+            <span class="label">封面</span>
+            <div class="cover-field">
+              <input v-model="cover" type="text" placeholder="图片地址或点击下方按钮选择" readonly />
+              <button type="button" :disabled="isLoadingCover" @click="selectCover">
+                {{ isLoadingCover ? '...' : '选择' }}
+              </button>
+            </div>
+            <div v-if="cover" class="cover-preview">
+              <img :src="cover" alt="cover" />
+              <button type="button" class="clear-cover" @click="clearCover">清除</button>
+            </div>
+          </label>
 
-        <label class="field">
-          <div class="lyrics-header">
-            <span class="label">歌词</span>
-            <select v-model="lyricsFormat" class="format-select">
-              <option v-for="f in lyricsFormats" :key="f.value" :value="f.value">{{ f.label }}</option>
-            </select>
-          </div>
-          <p class="format-desc">{{ currentFormatDesc }}</p>
-          <textarea v-model="lyrics" rows="8" :disabled="isLoadingDefaults" placeholder="粘贴歌词文本"></textarea>
-          <a class="lyrics-help" href="https://amll.dev/guides/lyric/formats" target="_blank">查看歌词格式文档</a>
-        </label>
-      </div>
-
-      <div class="editor-footer">
-        <button class="btn secondary" @click="restoreDefaults">恢复默认</button>
-        <div class="actions">
-          <button class="btn secondary" @click="close">取消</button>
-          <button class="btn primary" @click="save">保存</button>
+          <label class="field">
+            <div class="lyrics-header">
+              <span class="label">歌词</span>
+              <select v-model="lyricsFormat" class="format-select">
+                <option v-for="f in lyricsFormats" :key="f.value" :value="f.value">{{ f.label }}</option>
+              </select>
+            </div>
+            <p class="format-desc">{{ currentFormatDesc }}</p>
+            <textarea v-model="lyrics" rows="8" :disabled="isLoadingDefaults" placeholder="粘贴歌词文本"></textarea>
+            <a class="lyrics-help" href="https://amll.dev/guides/lyric/formats" target="_blank">查看歌词格式文档</a>
+          </label>
         </div>
-      </div>
-    </template>
+
+        <div class="editor-footer">
+          <button class="btn secondary" @click="restoreDefaults">恢复默认</button>
+          <div class="actions">
+            <button class="btn secondary" @click="close">取消</button>
+            <button class="btn primary" @click="save">保存</button>
+          </div>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.editor-root {
-  width: 100vw;
-  height: 100vh;
+.editor-float {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+}
+
+.editor-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.editor-window {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(640px, calc(100vw - 40px));
+  max-height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--fluent-border);
+  border-radius: 12px;
+  background: var(--fluent-bg-card);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
   color: var(--fluent-text);
   font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -293,7 +324,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  padding: 40px 20px;
   font-size: 13px;
   color: var(--fluent-text-secondary);
 }
@@ -304,6 +335,8 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--fluent-border);
+  cursor: move;
+  user-select: none;
 }
 
 .editor-header h2 {

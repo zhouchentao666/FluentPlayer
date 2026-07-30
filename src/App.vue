@@ -18,6 +18,7 @@ import PlaylistView from './components/PlaylistView.vue'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
+import EditorApp from './EditorApp.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
 import { useConfig, type AppSettings, type ConfigPlayback, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
@@ -36,6 +37,7 @@ const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
 const showQueue = ref(false)
+const editorPath = ref<string | null>(null)
 const playMode = ref<PlayMode>('sequential')
 const settings = ref<AppSettings>({
   theme: 'system',
@@ -301,6 +303,7 @@ let offMetadataChanged: (() => void) | null = null
 let offTrayPrev: (() => void) | null = null
 let offTrayNext: (() => void) | null = null
 let offTrayExit: (() => void) | null = null
+let offOpenEditor: (() => void) | null = null
 let traySyncId = 0
 let traySyncQueue = Promise.resolve()
 
@@ -368,6 +371,9 @@ onMounted(async () => {
   offTrayPrev = Events.On('tray:prev', playPrev)
   offTrayNext = Events.On('tray:next', playNext)
   offTrayExit = Events.On('tray:exit', handleTrayExit)
+  offOpenEditor = Events.On('open-song-editor', (event: any) => {
+    editorPath.value = event.payload as string
+  })
 })
 
 onUnmounted(() => {
@@ -377,6 +383,7 @@ onUnmounted(() => {
   offTrayPrev?.()
   offTrayNext?.()
   offTrayExit?.()
+  offOpenEditor?.()
   disposeBridge()
   disposeLyric()
 })
@@ -483,6 +490,12 @@ onUnmounted(() => {
       @clear="audio.clearQueue"
     />
     <audio ref="audioRef" style="display: none;"></audio>
+
+    <EditorApp
+      v-if="editorPath"
+      :path="editorPath"
+      @close="editorPath = null"
+    />
   </div>
 </template>
 
