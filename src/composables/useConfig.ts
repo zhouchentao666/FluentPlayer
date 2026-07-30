@@ -86,7 +86,6 @@ export interface AppSettings {
   accentColor: string
   autoplay: boolean
   savePlaylistAndSong: boolean
-  saveWindowPosition: boolean
   windowEffect: WindowEffect
   customImagePath: string
   customImageOpacity: number
@@ -118,13 +117,6 @@ export interface ConfigPlayback {
   playlistId: string
   songIndex: number
   time: number
-}
-
-export interface ConfigWindow {
-  x: number
-  y: number
-  width: number
-  height: number
 }
 
 function parseDesktopLyricConfig(raw: unknown): DesktopLyricConfig {
@@ -160,7 +152,6 @@ export function useConfig(
   playlists: Ref<Playlist[]>,
   settings: Ref<AppSettings>,
   playback: Ref<ConfigPlayback>,
-  windowState: Ref<ConfigWindow>,
   isLoading: Ref<boolean>
 ) {
   function buildConfig() {
@@ -168,7 +159,6 @@ export function useConfig(
       playlists: playlists.value,
       settings: settings.value,
       playback: playback.value,
-      window: windowState.value,
     }
   }
 
@@ -190,7 +180,6 @@ export function useConfig(
           accentColor: config.settings.accentColor || '#0078d4',
           autoplay: config.settings.autoplay ?? false,
           savePlaylistAndSong: config.settings.savePlaylistAndSong ?? true,
-          saveWindowPosition: config.settings.saveWindowPosition ?? true,
           windowEffect: (config.settings.windowEffect as WindowEffect) || 'acrylic',
           customImagePath: config.settings.customImagePath || '',
           customImageOpacity: hasEffect ? (config.settings.customImageOpacity ?? 35) : 35,
@@ -223,14 +212,6 @@ export function useConfig(
           playlistId: config.playback.playlistId || '',
           songIndex: config.playback.songIndex ?? -1,
           time: config.playback.time ?? 0,
-        }
-      }
-      if (config.window) {
-        windowState.value = {
-          x: config.window.x ?? 0,
-          y: config.window.y ?? 0,
-          width: config.window.width ?? 800,
-          height: config.window.height ?? 600,
         }
       }
     } catch {

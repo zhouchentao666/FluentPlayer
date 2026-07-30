@@ -20,7 +20,7 @@ import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
-import { useConfig, type AppSettings, type ConfigPlayback, type ConfigWindow, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
+import { useConfig, type AppSettings, type ConfigPlayback, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
 import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
@@ -42,7 +42,6 @@ const settings = ref<AppSettings>({
   accentColor: '#0078d4',
   autoplay: false,
   savePlaylistAndSong: true,
-  saveWindowPosition: true,
   windowEffect: 'acrylic',
   customImagePath: '',
   customImageOpacity: 35,
@@ -76,20 +75,11 @@ const playbackState = ref<ConfigPlayback>({
   time: 0,
 })
 
-// 初始 width/height 为 0，restoreSession 的守卫（width>0）会跳过，
-// 让 Tauri 配置中的 center:true 生效居中，而不是被强制到 (0,0) 左上角。
-const windowState = ref<ConfigWindow>({
-  x: 0,
-  y: 0,
-  width: 0,
-  height: 0,
-})
-
 const { playlists, selectedId, updatePlaylists, updatePlaylist, selectPlaylist, addMusicFiles, addMusicFolder, refreshFolder, rewatchFolders, addSongs, replaceSongs } = usePlaylists()
 const currentPlaylist = computed(() => playlists.value.find(p => p.id === selectedId.value))
 const currentPlaylistSort = computed(() => currentPlaylist.value ? settings.value.playlistSorts[currentPlaylist.value.id] : undefined)
 
-const { save, load } = useConfig(playlists, settings, playbackState, windowState, isLoading)
+const { save, load } = useConfig(playlists, settings, playbackState, isLoading)
 
 // 提供 settings 给子组件使用（使用 computed 保持响应性）
 provide('settings', settings)
@@ -213,7 +203,7 @@ function updateSettings(newSettings: AppSettings) {
   settings.value = { ...newSettings }
 }
 
-const { handleClose, restoreSession } = useSession(settings, playbackState, windowState, save, playlists, audio, selectPlaylist)
+const { handleClose, restoreSession } = useSession(settings, playbackState, save, playlists, audio, selectPlaylist)
 
 function handleTrayExit() {
   handleClose(true)

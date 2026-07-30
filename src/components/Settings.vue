@@ -209,15 +209,6 @@ const fontOptions = computed(() => {
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="窗口">
-        <SettingRow label="重启后保存窗口位置和大小" description="退出时记住窗口的位置与尺寸">
-          <ToggleSwitch
-            :model-value="settings.saveWindowPosition"
-            @update:model-value="value => update({ saveWindowPosition: value })"
-          />
-        </SettingRow>
-      </SettingCard>
-
       <SettingCard title="快捷键">
         <SettingRow
           v-for="action in HOTKEY_ACTIONS"

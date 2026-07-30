@@ -1,13 +1,12 @@
 import { nextTick, type Ref } from 'vue'
 import { Window, Application } from '@bridge/runtime'
-import type { AppSettings, ConfigPlayback, ConfigWindow } from './useConfig'
+import type { AppSettings, ConfigPlayback } from './useConfig'
 import type { Playlist } from '../types'
 import type { useAudioPlayer } from './useAudioPlayer'
 
 export function useSession(
   settings: Ref<AppSettings>,
   playbackState: Ref<ConfigPlayback>,
-  windowState: Ref<ConfigWindow>,
   save: () => Promise<void>,
   playlists: Ref<Playlist[]>,
   audio: ReturnType<typeof useAudioPlayer>,
@@ -26,34 +25,11 @@ export function useSession(
         time: audio.currentTime.value,
       }
     }
-    if (settings.value.saveWindowPosition) {
-      try {
-        const pos = await Window.Position()
-        const size = await Window.Size()
-        windowState.value = {
-          x: pos.x,
-          y: pos.y,
-          width: size.width,
-          height: size.height,
-        }
-      } catch {
-        // ignore
-      }
-    }
     await save()
     Application.Quit()
   }
 
   async function restoreSession() {
-    if (settings.value.saveWindowPosition && windowState.value.width > 0 && windowState.value.height > 0) {
-      try {
-        await Window.SetPosition(windowState.value.x, windowState.value.y)
-        await Window.SetSize(windowState.value.width, windowState.value.height)
-      } catch {
-        // ignore
-      }
-    }
-
     if (settings.value.savePlaylistAndSong && playbackState.value.playlistId) {
       const playlist = playlists.value.find(p => p.id === playbackState.value.playlistId)
       if (playlist && playbackState.value.songIndex >= 0 && playbackState.value.songIndex < playlist.songs.length) {

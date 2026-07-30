@@ -18,7 +18,6 @@ export interface AppConfig {
     accentColor?: string
     autoplay?: boolean
     savePlaylistAndSong?: boolean
-    saveWindowPosition?: boolean
     windowEffect?: string
     customImagePath?: string
     customImageOpacity?: number
