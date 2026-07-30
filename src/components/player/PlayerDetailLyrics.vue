@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import '@applemusic-like-lyrics/core/style.css'
-import { computed, inject, toRaw, type Ref } from 'vue'
+import { computed, ref, inject, toRaw, type Ref } from 'vue'
 import { LyricPlayer } from '@applemusic-like-lyrics/vue'
 import type { LyricLine, LyricLineMouseEvent } from '@applemusic-like-lyrics/core'
 import type { AppSettings } from '../../composables/useConfig'
@@ -31,6 +31,13 @@ const effectiveFontSize = computed(() => {
   return base
 })
 
+// 鼠标悬停歌词时短暂关闭模糊，移开恢复
+const hovering = ref(false)
+const effectiveBlur = computed(() => {
+  if (hovering.value) return false
+  return settings?.value.lyricBlur ?? true
+})
+
 const lyricStyle = computed(() => ({
   '--amll-lp-font-size': `${effectiveFontSize.value}px`,
   fontFamily: settings?.value.lyricFontFamily ? settings.value.lyricFontFamily : 'inherit',
@@ -45,6 +52,8 @@ function onLineClick(e: LyricLineMouseEvent) {
   <div
     class="lyrics-panel"
     :class="{ visible: show }"
+    @mouseenter="hovering = true"
+    @mouseleave="hovering = false"
   >
     <LyricPlayer
       v-if="lyrics.length > 0"
@@ -54,7 +63,7 @@ function onLineClick(e: LyricLineMouseEvent) {
       :playing="isPlaying"
       :word-fade-width="0.5"
       :align-position="settings?.lyricAlignPosition ?? 0.5"
-      :enable-blur="settings?.lyricBlur ?? true"
+      :enable-blur="effectiveBlur"
       :enable-spring="settings?.lyricSpring ?? true"
       :style="lyricStyle"
       @line-click="onLineClick"
