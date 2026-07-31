@@ -1,4 +1,4 @@
-import { resolveOnlineUrl } from '../player'
+import { resolveOnlineUrl, downloadQuality } from '../player'
 import { cdnHeadersForUrl } from './cdnHeaders'
 import type { MusicInfo } from '../types/music'
 import { toast } from '../../composables/useToast'
@@ -33,7 +33,7 @@ function inferExt(url: string): string {
 export async function downloadSong(m: MusicInfo): Promise<boolean> {
   let url: string
   try {
-    const r = await resolveOnlineUrl(m)
+    const r = await resolveOnlineUrl(m, downloadQuality.value)
     url = r.url
   } catch (e) {
     toast(`获取下载链接失败：${(e as Error)?.message || e}`, 'error')
@@ -83,7 +83,7 @@ export async function downloadMany(musics: MusicInfo[]): Promise<void> {
       const m = musics[i]
       let url = ''
       try {
-        const r = await resolveOnlineUrl(m)
+        const r = await resolveOnlineUrl(m, downloadQuality.value)
         url = r.url
       } catch {
         fail++

@@ -1,7 +1,14 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
 import { Version } from '@bridge/app'
-import { type AppSettings, HOTKEY_ACTIONS, type HotkeyAction, type DesktopLyricConfig } from '../composables/useConfig'
+import {
+  type AppSettings,
+  HOTKEY_ACTIONS,
+  type HotkeyAction,
+  type DesktopLyricConfig,
+  type AudioQuality,
+  AUDIO_QUALITY_OPTIONS,
+} from '../composables/useConfig'
 import { useFontList } from '../composables/useFontList'
 import SettingCard from './settings/SettingCard.vue'
 import SettingRow from './settings/SettingRow.vue'
@@ -118,6 +125,27 @@ const fontOptions = computed(() => {
             :model-value="settings.savePlaylistAndSong"
             @update:model-value="value => update({ savePlaylistAndSong: value })"
           />
+        </SettingRow>
+      </SettingCard>
+
+      <SettingCard title="在线音质">
+        <SettingRow label="播放音质" description="在线播放优先请求的音质，获取失败时自动向下降级">
+          <select
+            class="fluent-select"
+            :value="settings.playQuality"
+            @change="e => update({ playQuality: (e.target as HTMLSelectElement).value as AudioQuality })"
+          >
+            <option v-for="q in AUDIO_QUALITY_OPTIONS" :key="q.value" :value="q.value">{{ q.label }}</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="下载音质" description="下载在线歌曲时优先请求的音质，获取失败时自动向下降级">
+          <select
+            class="fluent-select"
+            :value="settings.downloadQuality"
+            @change="e => update({ downloadQuality: (e.target as HTMLSelectElement).value as AudioQuality })"
+          >
+            <option v-for="q in AUDIO_QUALITY_OPTIONS" :key="q.value" :value="q.value">{{ q.label }}</option>
+          </select>
         </SettingRow>
       </SettingCard>
 
@@ -241,6 +269,12 @@ const fontOptions = computed(() => {
             :model-value="settings.closeToTray"
             :disabled="!settings.trayEnabled"
             @update:model-value="value => update({ closeToTray: value })"
+          />
+        </SettingRow>
+        <SettingRow label="系统媒体控制" description="把歌曲信息与封面同步到系统媒体面板，并支持键盘媒体键 / 系统悬浮控件">
+          <ToggleSwitch
+            :model-value="settings.systemMediaControl"
+            @update:model-value="value => update({ systemMediaControl: value })"
           />
         </SettingRow>
       </SettingCard>

@@ -21,7 +21,7 @@ import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
-import { useConfig, type AppSettings, type ConfigPlayback, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
+import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
 import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
@@ -31,8 +31,11 @@ import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
+import { setPreferredQuality, setDownloadQuality } from './online/player'
+import { useMediaSession } from './composables/useMediaSession'
 
 const view = ref<'main' | 'settings' | 'online'>('main')
+const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
@@ -69,6 +72,9 @@ const settings = ref<AppSettings>({
   playlistSorts: {},
   localMetadata: {},
   pinnedOnlinePlaylists: [],
+  playQuality: '320k',
+  downloadQuality: 'flac',
+  systemMediaControl: true,
 })
 
 const playbackState = ref<ConfigPlayback>({
@@ -85,6 +91,16 @@ const { save, load } = useConfig(playlists, settings, playbackState, isLoading)
 
 // 提供 settings 给子组件使用（使用 computed 保持响应性）
 provide('settings', settings)
+
+// 设置里的音质偏好同步到在线播放 / 下载模块
+watch(
+  () => [settings.value.playQuality, settings.value.downloadQuality] as const,
+  ([play, download]) => {
+    if (play) setPreferredQuality(play)
+    if (download) setDownloadQuality(download)
+  },
+  { immediate: true },
+)
 
 const audio = useAudioPlayer({
   audioRef,
@@ -116,6 +132,25 @@ const { dispose: disposeBridge } = useDesktopLyricBridge({
 })
 
 const { toggle: toggleDesktopLyric, openIfEnabled, dispose: disposeLyric } = useDesktopLyric({ settings })
+
+// 系统媒体控制（Windows SMTC / macOS Now Playing / Linux MPRIS）
+useMediaSession({
+  currentSong: audio.currentSong,
+  coverUrl: audio.coverUrl,
+  isPlaying: audio.isPlaying,
+  currentTime: audio.currentTime,
+  duration: audio.duration,
+  enabled: computed(() => settings.value.systemMediaControl !== false),
+  handlers: {
+    play: () => {
+      if (!audio.isPlaying.value) audio.togglePlay()
+    },
+    pause: () => audio.pause(),
+    next: playNext,
+    prev: playPrev,
+    seek: (t: number) => audio.seek(t),
+  },
+})
 
 const lyricTime = computed(() => Math.floor(audio.currentTime.value * 1000))
 
@@ -233,6 +268,11 @@ type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 
 const pendingOnlineOpen = ref<OpenTarget | null>(null)
 function openOnlineItem(item: OpenTarget) {
   pendingOnlineOpen.value = { ...item }
+  onlineTab.value = item.kind === 'album' ? 'albums' : 'playlists'
+  view.value = 'online'
+}
+function openOnline(tab: OnlineTab) {
+  onlineTab.value = tab
   view.value = 'online'
 }
 function unpinOnlineItem(id: string) {
@@ -412,11 +452,12 @@ onUnmounted(() => {
         :playlists="playlists"
         :selected-id="selectedId"
         :active-view="view"
+        :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
         @update:selected-id="selectedId = $event"
         @open-settings="view = 'settings'"
-        @open-online="view = 'online'"
+        @open-online="openOnline"
         @select="onSelectPlaylist"
         @open-online-item="openOnlineItem"
         @unpin-online="unpinOnlineItem"
@@ -454,6 +495,8 @@ onUnmounted(() => {
             :playlists="playlists"
             :current-song="audio.currentSong.value"
             :open-request="pendingOnlineOpen"
+            :tab="onlineTab"
+            @update:tab="onlineTab = $event"
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
             @add-to-playlist="addSongs"

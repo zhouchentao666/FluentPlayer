@@ -9,6 +9,21 @@ export type FullScreenBackground = 'static' | 'dynamic'
 export type CoverTransition = 'fade' | 'slide-left' | 'slide-both'
 export type HotkeyAction = 'togglePlay' | 'prevSong' | 'nextSong' | 'volumeUp' | 'volumeDown' | 'mute' | 'togglePlayerDetail'
 export type DesktopLyricPosition = 'left' | 'center' | 'right' | 'both'
+/** 在线音乐的四个独立子标签页。 */
+export type OnlineTab = 'playlists' | 'albums' | 'charts' | 'search'
+/** 在线音乐音质档位（与 @online/lib/quality 的 Quality 保持一致）。 */
+export type AudioQuality = '128k' | '320k' | 'flac' | 'flac24bit'
+
+export const AUDIO_QUALITY_OPTIONS: { value: AudioQuality; label: string }[] = [
+  { value: '128k', label: '标准 128K' },
+  { value: '320k', label: '高品 320K' },
+  { value: 'flac', label: '无损 FLAC' },
+  { value: 'flac24bit', label: 'Hi-Res 24bit' },
+]
+
+function parseQuality(raw: unknown, fallback: AudioQuality): AudioQuality {
+  return raw === '128k' || raw === '320k' || raw === 'flac' || raw === 'flac24bit' ? raw : fallback
+}
 
 export const HOTKEY_ACTIONS: { value: HotkeyAction; label: string }[] = [
   { value: 'togglePlay', label: '播放/暂停' },
@@ -86,6 +101,12 @@ export interface AppSettings {
   accentColor: string
   autoplay: boolean
   savePlaylistAndSong: boolean
+  /** 在线播放首选音质（获取不到时自动向下降级）。 */
+  playQuality: AudioQuality
+  /** 在线下载首选音质（获取不到时自动向下降级）。 */
+  downloadQuality: AudioQuality
+  /** 是否把播放信息同步到系统媒体控制中心（SMTC / MediaSession）。 */
+  systemMediaControl: boolean
   windowEffect: WindowEffect
   customImagePath: string
   customImageOpacity: number
@@ -190,6 +211,9 @@ export function useConfig(
           accentColor: config.settings.accentColor || '#0078d4',
           autoplay: config.settings.autoplay ?? false,
           savePlaylistAndSong: config.settings.savePlaylistAndSong ?? true,
+          playQuality: parseQuality((config.settings as unknown as Record<string, unknown>).playQuality, '320k'),
+          downloadQuality: parseQuality((config.settings as unknown as Record<string, unknown>).downloadQuality, 'flac'),
+          systemMediaControl: ((config.settings as unknown as Record<string, unknown>).systemMediaControl as boolean) ?? true,
           windowEffect: (config.settings.windowEffect as WindowEffect) || 'acrylic',
           customImagePath: config.settings.customImagePath || '',
           customImageOpacity: hasEffect ? (config.settings.customImageOpacity ?? 35) : 35,

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { type Playlist } from '../types'
-import type { PinnedOnlineItem } from '../composables/useConfig'
+import type { PinnedOnlineItem, OnlineTab } from '../composables/useConfig'
 import PlaylistItem from './sidebar/PlaylistItem.vue'
 import PlaylistCreateInput from './sidebar/PlaylistCreateInput.vue'
 
@@ -9,6 +9,7 @@ const props = defineProps<{
   playlists: Playlist[]
   selectedId: string
   activeView?: 'main' | 'settings' | 'online'
+  onlineTab?: OnlineTab
   pinnedOnline?: PinnedOnlineItem[]
 }>()
 
@@ -16,12 +17,20 @@ const emit = defineEmits<{
   (e: 'update:playlists', playlists: Playlist[]): void
   (e: 'update:selectedId', id: string): void
   (e: 'open-settings'): void
-  (e: 'open-online'): void
+  (e: 'open-online', tab: OnlineTab): void
   (e: 'select', id: string): void
   (e: 'open-online-item', item: PinnedOnlineItem): void
   (e: 'unpin-online', id: string): void
   (e: 'drop-songs', payload: { targetPlaylistId: string; sourcePlaylistId: string; songIds: string[] }): void
 }>()
+
+/** 在线音乐拆分成四个独立入口，点击直达对应子标签页。 */
+const ONLINE_TABS: { id: OnlineTab; label: string; path: string }[] = [
+  { id: 'playlists', label: '歌单', path: 'M4 6h10M4 10h10M4 14h6M17 8v7.2a1.8 1.8 0 1 1-1.2-1.7' },
+  { id: 'albums', label: '专辑', path: 'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm0 5.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8z' },
+  { id: 'charts', label: '排行榜', path: 'M4 16V9m6 7V4m6 12v-5' },
+  { id: 'search', label: '搜索', path: 'M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3zm4.5 10.5L17 17' },
+]
 
 const sourceLabels: Record<string, string> = { wy: '网易云', kw: '酷我', kg: '酷狗', tx: 'QQ', mg: '咪咕' }
 function sourceLabel(s: string) {
@@ -88,18 +97,22 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
 <template>
   <aside class="sidebar">
     <div class="section">
-      <button
-        :class="['nav-btn', { active: activeView === 'online' }]"
-        @click="emit('open-online')"
-      >
-        <span class="icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" />
-          </svg>
-        </span>
-        <span>在线音乐</span>
-      </button>
+      <div class="section-title">在线音乐</div>
+      <ul class="online-nav">
+        <li v-for="t in ONLINE_TABS" :key="t.id">
+          <button
+            :class="['nav-btn', 'sub', { active: activeView === 'online' && onlineTab === t.id }]"
+            @click="emit('open-online', t.id)"
+          >
+            <span class="icon">
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path :d="t.path" />
+              </svg>
+            </span>
+            <span>{{ t.label }}</span>
+          </button>
+        </li>
+      </ul>
       <div class="section-title">歌单</div>
       <ul class="playlist-list">
         <PlaylistItem
@@ -208,8 +221,24 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
   transition: background 0.18s ease;
 }
 
-.nav-btn {
-  margin-bottom: 12px;
+.online-nav {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-btn .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.nav-btn.sub {
+  padding: 8px 12px;
 }
 
 .create-btn:hover,

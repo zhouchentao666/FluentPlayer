@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { MusicInfo, SearchResult } from '@online/types/music'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
@@ -42,15 +42,70 @@ const platformOptions = computed(() =>
 )
 
 const hotKeywords = ref<{ keyword: string; rank: number }[]>([])
+const hotLoading = ref(false)
+const hotError = ref('')
 
 const sourceForHot = computed(() => platform.value as 'wy' | 'kw' | 'kg' | 'tx' | 'mg')
 
 async function loadHot() {
+  const requested = sourceForHot.value
+  hotLoading.value = true
+  hotError.value = ''
   try {
-    hotKeywords.value = await getHotSearch(sourceForHot.value)
-  } catch {
+    const list = await getHotSearch(requested)
+    if (requested !== sourceForHot.value) return
+    hotKeywords.value = list
+  } catch (e) {
+    if (requested !== sourceForHot.value) return
     hotKeywords.value = []
+    hotError.value = (e as Error).message || '热搜加载失败'
+  } finally {
+    if (requested === sourceForHot.value) hotLoading.value = false
   }
+}
+
+// 之前只在 platform / tab 变化时才拉热搜，首次进入搜索页永远是空的
+onMounted(loadHot)
+
+// ---- 历史搜索记录 ----
+const HISTORY_KEY = 'tideaudio-online:searchHistory'
+const HISTORY_MAX = 20
+const history = ref<string[]>(loadHistory())
+
+function loadHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string').slice(0, HISTORY_MAX) : []
+  } catch {
+    return []
+  }
+}
+function saveHistory() {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history.value))
+  } catch {
+    /* 隐私模式下写入可能失败，忽略 */
+  }
+}
+function pushHistory(q: string) {
+  history.value = [q, ...history.value.filter((x) => x !== q)].slice(0, HISTORY_MAX)
+  saveHistory()
+}
+function removeHistory(q: string) {
+  history.value = history.value.filter((x) => x !== q)
+  saveHistory()
+}
+function clearHistory() {
+  history.value = []
+  saveHistory()
+}
+function backToDiscover() {
+  hasSearched.value = false
+  query.value = ''
+  songs.value = []
+  cards.value = []
+  error.value = ''
 }
 
 watch(platform, () => {
@@ -76,6 +131,7 @@ function runSearch(p = 1) {
   error.value = ''
   page.value = p
   hasSearched.value = true
+  pushHistory(q)
 
   const source = platform.value as 'wy' | 'kw' | 'kg' | 'tx' | 'mg'
 
@@ -154,23 +210,46 @@ function onCardOpen(item: Playlist | Album) {
       </div>
     </div>
 
-    <div v-if="!hasSearched" class="hot-section">
-      <div class="hot-title">热门搜索 · {{ platformName(sourceForHot) }}</div>
-      <div class="hot-cloud">
-        <button
-          v-for="kw in hotKeywords"
-          :key="kw.keyword"
-          class="hot-keyword"
-          :style="{ fontSize: 13 + Math.min(kw.rank, 10) * 1.2 + 'px' }"
-          @click="onHot(kw.keyword)"
-        >
-          {{ kw.keyword }}
-        </button>
-        <span v-if="!hotKeywords.length && !loading" class="hot-empty">暂无热搜</span>
+    <div v-if="!hasSearched" class="discover">
+      <div v-if="history.length" class="hot-section">
+        <div class="hot-title">
+          <span>历史搜索</span>
+          <button class="link-btn" @click="clearHistory">清空</button>
+        </div>
+        <div class="history-cloud">
+          <span v-for="h in history" :key="h" class="history-chip" @click="onHot(h)">
+            <span class="history-text">{{ h }}</span>
+            <button class="history-del" title="删除该记录" @click.stop="removeHistory(h)">
+              <svg viewBox="0 0 12 12" width="10" height="10"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <div class="hot-section">
+        <div class="hot-title">
+          <span>热门搜索 · {{ platformName(sourceForHot) }}</span>
+          <button class="link-btn" :disabled="hotLoading" @click="loadHot">刷新</button>
+        </div>
+        <div class="hot-cloud">
+          <button
+            v-for="kw in hotKeywords"
+            :key="kw.keyword"
+            class="hot-keyword"
+            :style="{ fontSize: 13 + Math.min(kw.rank, 10) * 1.2 + 'px' }"
+            @click="onHot(kw.keyword)"
+          >
+            {{ kw.keyword }}
+          </button>
+          <span v-if="hotLoading" class="hot-empty">热搜加载中…</span>
+          <span v-else-if="hotError" class="hot-empty error">{{ hotError }}</span>
+          <span v-else-if="!hotKeywords.length" class="hot-empty">暂无热搜</span>
+        </div>
       </div>
     </div>
 
     <div v-else class="results">
+      <button class="link-btn back-btn" @click="backToDiscover">← 返回热搜 / 历史</button>
       <div v-if="loading" class="state">加载中…</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
       <div v-else-if="tab === 'song' && songs.length === 0" class="state">未找到相关歌曲</div>
@@ -272,13 +351,86 @@ function onCardOpen(item: Playlist | Album) {
   background: var(--fluent-bg-active);
   color: var(--fluent-text);
 }
-.hot-section {
+.discover {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
   margin-top: 8px;
 }
+.hot-section {
+  margin-top: 0;
+}
 .hot-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 13px;
   color: var(--fluent-text-secondary);
   margin-bottom: 12px;
+}
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.link-btn:hover:not(:disabled) {
+  color: var(--fluent-accent);
+  background: var(--fluent-bg-hover);
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.back-btn {
+  margin-bottom: 10px;
+}
+.history-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px 5px 12px;
+  border-radius: 999px;
+  background: var(--fluent-bg-card);
+  border: 1px solid var(--fluent-border);
+  font-size: 12.5px;
+  color: var(--fluent-text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.history-chip:hover {
+  background: var(--fluent-bg-hover);
+  border-color: var(--fluent-accent);
+}
+.history-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.history-chip:hover .history-del {
+  opacity: 1;
+}
+.history-del:hover {
+  background: var(--fluent-bg-active);
+  color: var(--fluent-text);
 }
 .hot-cloud {
   display: flex;
@@ -299,6 +451,9 @@ function onCardOpen(item: Playlist | Album) {
 .hot-empty {
   color: var(--fluent-text-secondary);
   font-size: 13px;
+}
+.hot-empty.error {
+  color: #f87171;
 }
 .results {
   flex: 1;

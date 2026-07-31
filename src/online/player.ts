@@ -9,20 +9,28 @@ export { QUALITY_LADDER, QUALITY_SHORT }
 export type { MusicInfo, Quality }
 
 const PREF_KEY = "tideaudio-online:preferredQuality"
+const DL_KEY = "tideaudio-online:downloadQuality"
 
 /** 用户偏好音质（会自动向下降级）。 */
-export const preferredQuality = ref<Quality>(loadPreferredQuality())
+export const preferredQuality = ref<Quality>(loadQuality(PREF_KEY, "320k"))
+/** 下载首选音质（同样会自动向下降级）。 */
+export const downloadQuality = ref<Quality>(loadQuality(DL_KEY, "flac"))
 /** 当前在线播放实际生效的音质（用于播放条角标显示）。 */
 export const activeQuality = ref<Quality | null>(null)
 
-function loadPreferredQuality(): Quality {
-  const v = localStorage.getItem(PREF_KEY) as Quality | null
-  return v && QUALITY_LADDER.includes(v) ? v : "320k"
+function loadQuality(key: string, fallback: Quality): Quality {
+  const v = localStorage.getItem(key) as Quality | null
+  return v && QUALITY_LADDER.includes(v) ? v : fallback
 }
 
 export function setPreferredQuality(q: Quality): void {
   preferredQuality.value = q
   localStorage.setItem(PREF_KEY, q)
+}
+
+export function setDownloadQuality(q: Quality): void {
+  downloadQuality.value = q
+  localStorage.setItem(DL_KEY, q)
 }
 
 /** 把线上曲目 interval "mm:ss" 转成秒。 */

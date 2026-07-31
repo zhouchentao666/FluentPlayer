@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { Playlist, Song } from '../types'
 import type { SortMode } from '../composables/usePlaylistView'
 import { OpenInExplorer, OpenSongEditor } from '@bridge/app'
+import { downloadSong } from '@online/lib/download'
 import {
   displayTitle,
   displayArtist,
@@ -39,6 +40,25 @@ const submenuOpen = ref(false)
 
 function isPlaying(song: Song) {
   return props.currentSong?.id === song.id
+}
+
+/** 在线歌曲没有本地文件，能做的是「下载」而不是「编辑 / 在资源管理器打开」。 */
+function isOnline(song: Song) {
+  return !!song.online
+}
+
+const downloading = ref<Set<string>>(new Set())
+
+async function download(song: Song) {
+  if (!song.online || downloading.value.has(song.id)) return
+  downloading.value = new Set(downloading.value).add(song.id)
+  try {
+    await downloadSong(song.online)
+  } finally {
+    const next = new Set(downloading.value)
+    next.delete(song.id)
+    downloading.value = next
+  }
 }
 
 function isCustomSort() {
@@ -133,6 +153,24 @@ function removeFromPlaylist() {
   closeMenu()
 }
 
+function downloadFromMenu() {
+  const song = contextSong.value
+  closeMenu()
+  if (song) void download(song)
+}
+
+function playFromMenu() {
+  const song = contextSong.value
+  closeMenu()
+  if (song) emit('play', song)
+}
+
+function queueFromMenu() {
+  const song = contextSong.value
+  closeMenu()
+  if (song) emit('addToQueue', song)
+}
+
 function addToPlaylist(playlistId: string) {
   if (contextSong.value) emit('addToPlaylist', playlistId, contextSong.value)
   closeMenu()
@@ -198,6 +236,21 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
       <span class="col-duration secondary-text">{{ displayDuration(song) }}</span>
       <div class="col-action actions">
         <button
+          v-if="isOnline(song)"
+          class="action-icon"
+          :class="{ busy: downloading.has(song.id) }"
+          :title="downloading.has(song.id) ? '下载中…' : '下载'"
+          :disabled="downloading.has(song.id)"
+          @click.stop="download(song)"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M4 20h16" />
+          </svg>
+        </button>
+        <button
+          v-else
           class="action-icon"
           title="编辑"
           @click.stop="OpenSongEditor(song.path)"
@@ -212,7 +265,12 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
           title="移除"
           @click.stop="emit('remove', song.id)"
         >
-          ✕
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h16" />
+            <path d="M10 11v6M14 11v6" />
+            <path d="M6 7l1 13h10l1-13" />
+            <path d="M9 7V4h6v3" />
+          </svg>
         </button>
       </div>
     </div>
@@ -234,8 +292,22 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
       :style="{ left: menuX + 'px', top: menuY + 'px' }"
       @click.stop
     >
-      <div class="menu-item" @click="openEditor">编辑</div>
-      <div class="menu-item" @click="openExplorer">在文件资源管理器打开</div>
+      <div class="menu-item" @click="playFromMenu">播放</div>
+      <div class="menu-item" @click="queueFromMenu">添加到播放队列</div>
+      <div class="menu-divider"></div>
+      <template v-if="contextSong && isOnline(contextSong)">
+        <div
+          class="menu-item"
+          :class="{ disabled: downloading.has(contextSong.id) }"
+          @click="downloadFromMenu"
+        >
+          {{ downloading.has(contextSong.id) ? '下载中…' : '下载' }}
+        </div>
+      </template>
+      <template v-else>
+        <div class="menu-item" @click="openEditor">编辑</div>
+        <div class="menu-item" @click="openExplorer">在文件资源管理器打开</div>
+      </template>
       <div class="menu-item" @click="removeFromPlaylist">从歌单移除</div>
       <div
         class="menu-item has-submenu"
@@ -438,6 +510,17 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
 .action-icon.remove:hover {
   background: var(--fluent-close-hover);
   color: white;
+}
+
+.action-icon.busy {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--fluent-border);
 }
 
 .trailing-drop-zone {

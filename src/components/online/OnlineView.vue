@@ -12,8 +12,10 @@ import { toast } from '../../composables/useToast'
 import OnlineSearch from './OnlineSearch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
+import OnlineCharts from './OnlineCharts.vue'
 import OnlineDetail from './OnlineDetail.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
+import type { OnlineTab } from '../../composables/useConfig'
 
 type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 'playlist' | 'album' }
 
@@ -21,20 +23,34 @@ const props = defineProps<{
   playlists: LocalPlaylist[]
   currentSong: Song | null
   openRequest: OpenTarget | null
+  tab: OnlineTab
 }>()
 const emit = defineEmits<{
   (e: 'play-songs', songs: Song[], index: number): void
   (e: 'add-to-queue', song: Song): void
   (e: 'add-to-playlist', playlistId: string, songs: Song[]): void
   (e: 'opened'): void
+  (e: 'update:tab', tab: OnlineTab): void
 }>()
 
 const settings = inject<Ref<AppSettings>>('settings')
 
-type Tab = 'search' | 'playlists' | 'albums' | 'sources'
-const tab = ref<Tab>('search')
+const TABS: { id: OnlineTab; label: string }[] = [
+  { id: 'playlists', label: '歌单' },
+  { id: 'albums', label: '专辑' },
+  { id: 'charts', label: '排行榜' },
+  { id: 'search', label: '搜索' },
+]
+function setTab(t: OnlineTab) {
+  emit('update:tab', t)
+}
+
+/** 音源管理改为顶栏按钮弹层，让主标签维持「歌单 / 专辑 / 排行榜 / 搜索」四项。 */
+const sourcesModal = ref(false)
 
 const detail = ref<OpenTarget | null>(null)
+/** 详情完全展开后隐藏底层界面，避免两层内容叠加（也省掉一次无谓的合成）。 */
+const detailShown = ref(false)
 const addMenu = ref<{ musics: MusicInfo[]; title: string } | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -174,18 +190,28 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   <div class="online-view">
     <div class="topbar">
       <div class="tabs">
-        <button :class="{ active: tab === 'search' }" @click="tab = 'search'">搜索</button>
-        <button :class="{ active: tab === 'playlists' }" @click="tab = 'playlists'">排行榜</button>
-        <button :class="{ active: tab === 'albums' }" @click="tab = 'albums'">新碟</button>
-        <button :class="{ active: tab === 'sources' }" @click="tab = 'sources'">音源</button>
+        <button
+          v-for="t in TABS"
+          :key="t.id"
+          :class="{ active: tab === t.id }"
+          @click="setTab(t.id)"
+        >
+          {{ t.label }}
+        </button>
       </div>
-      <button class="open-link-btn" title="打开外部歌单 / 专辑链接" @click="linkModal = true">
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M6.5 9.5l3-3M7 4h4v4M9.5 6.5L12 4M4 12V6h3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        打开链接
-      </button>
+      <div class="topbar-actions">
+        <button class="open-link-btn" title="打开外部歌单 / 专辑链接" @click="linkModal = true">
+          <svg viewBox="0 0 16 16" width="15" height="15"><path d="M6.5 9.5l3-3M7 4h4v4M9.5 6.5L12 4M4 12V6h3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          打开链接
+        </button>
+        <button class="open-link-btn" title="自定义音源管理" @click="sourcesModal = true">
+          <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 2v12M3.5 5.5v5M12.5 5.5v5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+          音源
+        </button>
+      </div>
     </div>
 
-    <div class="body">
+    <div v-show="!detailShown" class="body">
       <OnlineSearch
         v-if="tab === 'search'"
         @play="onPlay"
@@ -196,8 +222,21 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
       />
       <OnlineHotPlaylists v-else-if="tab === 'playlists'" @open="(item) => onOpen(item, 'playlist')" />
       <OnlineHotAlbums v-else-if="tab === 'albums'" @open="(item) => onOpen(item, 'album')" />
+      <OnlineCharts
+        v-else-if="tab === 'charts'"
+        @play="onPlay"
+        @queue="onQueue"
+        @add-playlist="onAddPlaylist"
+        @download="onDownload"
+        @add-all="onAddAll"
+        @download-all="onDownloadAll"
+      />
+    </div>
 
-      <div v-else class="sources-view">
+    <!-- 自定义音源管理 -->
+    <div v-if="sourcesModal" class="modal-mask" @click.self="sourcesModal = false">
+      <div class="sources-modal">
+        <div class="sources-view">
         <div class="sources-head">
           <h2 class="title">自定义音源</h2>
           <div class="import-row">
@@ -239,11 +278,17 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
             </div>
           </div>
         </div>
+        </div>
+        <button class="cancel" @click="sourcesModal = false">关闭</button>
       </div>
     </div>
 
     <!-- 详情：从下到上的「新界面」动画 -->
-    <Transition name="slide-up">
+    <Transition
+      name="slide-up"
+      @after-enter="detailShown = true"
+      @before-leave="detailShown = false"
+    >
       <div v-if="detail" class="overlay">
         <button class="back" @click="detail = null">
           <svg viewBox="0 0 16 16" width="16" height="16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -333,6 +378,11 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   padding: 14px 28px 6px;
   flex-shrink: 0;
 }
+.topbar-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .open-link-btn {
   display: inline-flex;
   align-items: center;
@@ -374,11 +424,15 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   min-height: 0;
   overflow: hidden;
 }
+/*
+ * 详情页是「一个新界面」而不是浮层：
+ * 不再叠加毛玻璃（backdrop-filter 会把窗口原生亚克力糊成第二层），
+ * 底层界面在动画结束后直接隐藏，只保留窗口底部播放条的亚克力质感。
+ */
 .overlay {
   position: absolute;
   inset: 0;
-  background: var(--fluent-bg-glass);
-  backdrop-filter: blur(20px) saturate(160%);
+  background: transparent;
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -413,9 +467,27 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
 }
 
 /* 音源管理 */
+.sources-modal {
+  width: 620px;
+  max-width: 92%;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--fluent-border);
+  border-radius: 16px;
+  padding: 8px 18px 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.sources-modal > .cancel {
+  align-self: flex-end;
+  margin-top: 4px;
+}
 .sources-view {
-  padding: 18px 28px 28px;
-  height: 100%;
+  padding: 18px 10px 8px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 .sources-head {
