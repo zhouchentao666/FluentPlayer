@@ -116,3 +116,18 @@ export function SetDesktopLyricIgnoreMouseEvents(ignore: boolean): Promise<void>
 export function GetDesktopLyricConfig(): Promise<Record<string, unknown>> {
   return invoke('get_desktop_lyric_config')
 }
+
+// ---------- 离线文件下载 ----------
+/** 弹出“保存文件”对话框，返回用户选择的完整路径；取消则返回 null。 */
+export function SaveFile(defaultName: string): Promise<string | null> {
+  return invoke('save_file', { defaultName })
+}
+
+/** 把在线音频直链下载为本地文件，返回 { size, path, duration_ms }。 */
+export function DownloadFile(
+  url: string,
+  dest: string,
+  headers?: Record<string, string>,
+): Promise<{ size: number; path: string; duration_ms: number }> {
+  return invoke('download_file', { url, dest, headers: headers ?? null })
+}

@@ -12,6 +12,8 @@ import {
   sanitizeLyricLines,
 } from '../utils/lyricConverter'
 import { localMetadata } from './useLocalMetadata'
+import { resolveOnlineLyric } from '@online/player'
+import type { MusicInfo } from '@online/types/music'
 
 export type { LyricLine }
 
@@ -88,11 +90,25 @@ function parseLyric(lrc: string, format?: string): LyricLine[] {
   return sanitizeLyricLines(parsed)
 }
 
-export function useLyrics(currentSong: Ref<{ path: string } | null>) {
+export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } | null>) {
   const lyrics = ref<LyricLine[]>([])
   const hasLyrics = ref(false)
+  let loadSeq = 0
+
+  async function loadOnlineLyrics(info: MusicInfo) {
+    const seq = ++loadSeq
+    lyrics.value = []
+    hasLyrics.value = false
+    const lyricInfo = await resolveOnlineLyric(info).catch(() => null)
+    if (seq !== loadSeq) return
+    if (!lyricInfo?.lyric) return
+    const parsed = parseLyric(lyricInfo.lyric)
+    lyrics.value = parsed
+    hasLyrics.value = parsed.length > 0
+  }
 
   async function loadLyrics(path: string | null) {
+    const seq = ++loadSeq
     if (!path) {
       lyrics.value = []
       hasLyrics.value = false
@@ -100,6 +116,7 @@ export function useLyrics(currentSong: Ref<{ path: string } | null>) {
     }
 
     const meta = localMetadata.value[path]
+    if (seq !== loadSeq) return
     const override = meta?.lyrics
     const format = meta?.lyricsFormat
     const lrc = (override && override.trim() !== '') ? override : await ReadLyrics(path).catch(() => '')
@@ -114,14 +131,20 @@ export function useLyrics(currentSong: Ref<{ path: string } | null>) {
   }
 
   watch(currentSong, (song) => {
-    loadLyrics(song?.path || null)
+    if (song?.online) {
+      loadOnlineLyrics(song.online)
+    } else {
+      loadLyrics(song?.path || null)
+    }
   }, { immediate: true })
 
   watch(() => localMetadata.value[currentSong.value?.path ?? '']?.lyrics, () => {
+    if (currentSong.value?.online) return
     loadLyrics(currentSong.value?.path || null)
   })
 
   watch(() => localMetadata.value[currentSong.value?.path ?? '']?.lyricsFormat, () => {
+    if (currentSong.value?.online) return
     loadLyrics(currentSong.value?.path || null)
   })
 

@@ -13,6 +13,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -25,6 +26,9 @@ pub fn run() {
             commands::dialogs::open_music_files,
             commands::dialogs::open_music_folder,
             commands::dialogs::open_image_file,
+            // 离线文件下载
+            commands::download::save_file,
+            commands::download::download_file,
             // 本地媒体
             commands::media::scan_music_folder,
             commands::media::read_metadata,

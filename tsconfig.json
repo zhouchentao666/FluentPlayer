@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@bridge/*": ["src/bridge/*"]
+      "@bridge/*": ["src/bridge/*"],
+      "@online/*": ["src/online/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"],

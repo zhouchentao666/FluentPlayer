@@ -1,5 +1,6 @@
 pub mod config;
 pub mod dialogs;
+pub mod download;
 pub mod lyric_window;
 pub mod media;
 pub mod system;

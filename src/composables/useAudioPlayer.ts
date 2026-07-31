@@ -2,6 +2,8 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch, type Ref } from
 import { ReadCoverArt, AudioSrc } from '@bridge/app'
 import { type Song } from '../types'
 import { localMetadata } from './useLocalMetadata'
+import { resolveOnlineUrl, resolveOnlinePic, activeQuality } from '@online/player'
+import { toast } from './useToast'
 
 interface AudioPlayerOptions {
   audioRef?: Ref<HTMLAudioElement | null>
@@ -40,14 +42,47 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
   }
 
   watch(() => localMetadata.value[currentSong.value?.path ?? '']?.cover, () => {
-    if (currentSong.value) loadCover(currentSong.value.path)
+    if (currentSong.value && !currentSong.value.online) loadCover(currentSong.value.path)
   })
 
-  // 播放本地歌曲
+  // 播放歌曲（本地文件或在线歌曲）
   async function playLocal(song: Song, autoPlay = true) {
     currentSong.value = song
     currentTime.value = 0
     duration.value = song.metadata?.duration || 0
+
+    if (song.online) {
+      // 在线歌曲：封面直接用 URL，播放直链异步解析
+      coverUrl.value = song.cover ?? null
+      if (!coverUrl.value) {
+        resolveOnlinePic(song.online).then((url) => {
+          if (currentSong.value?.id === song.id && url) coverUrl.value = url
+        })
+      }
+      await nextTick()
+      if (!audioRef.value) return
+      try {
+        const { url, quality } = await resolveOnlineUrl(song.online)
+        // 解析期间用户可能已切歌
+        if (currentSong.value?.id !== song.id || !audioRef.value) return
+        activeQuality.value = quality
+        audioRef.value.src = url
+        audioRef.value.load()
+        audioRef.value.playbackRate = playbackRate.value
+        if (autoPlay) {
+          await audioRef.value.play()
+          isPlaying.value = true
+        } else {
+          isPlaying.value = false
+        }
+      } catch (err) {
+        isPlaying.value = false
+        toast(`在线播放失败：${(err as Error).message}`, 'error')
+      }
+      return
+    }
+
+    activeQuality.value = null
     await loadCover(song.path)
     await nextTick()
     if (!audioRef.value) return

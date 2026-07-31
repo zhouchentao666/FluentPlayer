@@ -7,13 +7,14 @@ import PlaylistCreateInput from './sidebar/PlaylistCreateInput.vue'
 const props = defineProps<{
   playlists: Playlist[]
   selectedId: string
-  activeView?: 'main' | 'settings'
+  activeView?: 'main' | 'settings' | 'online'
 }>()
 
 const emit = defineEmits<{
   (e: 'update:playlists', playlists: Playlist[]): void
   (e: 'update:selectedId', id: string): void
   (e: 'open-settings'): void
+  (e: 'open-online'): void
   (e: 'select', id: string): void
   (e: 'drop-songs', payload: { targetPlaylistId: string; sourcePlaylistId: string; songIds: string[] }): void
 }>()
@@ -78,6 +79,18 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
 <template>
   <aside class="sidebar">
     <div class="section">
+      <button
+        :class="['nav-btn', { active: activeView === 'online' }]"
+        @click="emit('open-online')"
+      >
+        <span class="icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" />
+          </svg>
+        </span>
+        <span>在线音乐</span>
+      </button>
       <div class="section-title">歌单</div>
       <ul class="playlist-list">
         <PlaylistItem
@@ -150,7 +163,8 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
 }
 
 .create-btn,
-.settings-btn {
+.settings-btn,
+.nav-btn {
   width: 100%;
   display: flex;
   align-items: center;
@@ -165,12 +179,18 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
   transition: background 0.18s ease;
 }
 
+.nav-btn {
+  margin-bottom: 12px;
+}
+
 .create-btn:hover,
-.settings-btn:hover {
+.settings-btn:hover,
+.nav-btn:hover {
   background: var(--fluent-bg-hover);
 }
 
-.settings-btn.active {
+.settings-btn.active,
+.nav-btn.active {
   background: var(--fluent-bg-active);
 }
 

@@ -15,6 +15,7 @@ import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import Settings from './components/Settings.vue'
 import PlaylistView from './components/PlaylistView.vue'
+import OnlineView from './components/online/OnlineView.vue'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
@@ -31,7 +32,7 @@ import type { Song } from './types'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 
-const view = ref<'main' | 'settings'>('main')
+const view = ref<'main' | 'settings' | 'online'>('main')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
@@ -402,6 +403,7 @@ onUnmounted(() => {
         @update:playlists="updatePlaylists"
         @update:selected-id="selectedId = $event"
         @open-settings="view = 'settings'"
+        @open-online="view = 'online'"
         @select="onSelectPlaylist"
         @drop-songs="handleDropSongs"
       />
@@ -430,6 +432,15 @@ onUnmounted(() => {
             :settings="settings"
             @update:settings="updateSettings"
             @close="view = 'main'"
+          />
+          <OnlineView
+            v-else-if="view === 'online'"
+            :key="'online'"
+            :playlists="playlists"
+            :current-song="audio.currentSong.value"
+            @play-songs="(songs, index) => audio.playSongs(songs, index)"
+            @add-to-queue="audio.addToQueue"
+            @add-to-playlist="addSongs"
           />
         </Transition>
       </main>

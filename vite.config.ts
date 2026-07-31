@@ -8,6 +8,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@bridge': fileURLToPath(new URL('./src/bridge', import.meta.url)),
+      '@online': fileURLToPath(new URL('./src/online', import.meta.url)),
     },
   },
 
