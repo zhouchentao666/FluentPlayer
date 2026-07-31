@@ -224,7 +224,7 @@ onBeforeUnmount(() => window.removeEventListener('click', onGlobalClick))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 22px 10px;
+  padding: 12px 22px 2px;
   flex-shrink: 0;
 }
 .topbar-actions {
