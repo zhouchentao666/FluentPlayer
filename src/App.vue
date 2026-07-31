@@ -21,7 +21,7 @@ import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
-import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, type PinnedOnlineItem, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
+import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
 import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
@@ -32,7 +32,6 @@ import type { Song } from './types'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import { setPreferredQuality, setDownloadQuality } from './online/player'
-import { downloadSong, downloadMany } from './online/lib/download'
 import { useMediaSession } from './composables/useMediaSession'
 
 const view = ref<'main' | 'settings' | 'online'>('main')
@@ -279,13 +278,6 @@ function openOnline(tab: OnlineTab) {
 function unpinOnlineItem(id: string) {
   settings.value.pinnedOnlinePlaylists = settings.value.pinnedOnlinePlaylists.filter((p) => p.id !== id)
 }
-function togglePin(item: PinnedOnlineItem) {
-  const list = settings.value.pinnedOnlinePlaylists
-  const exists = list.some((p) => p.id === item.id && p.source === item.source)
-  settings.value.pinnedOnlinePlaylists = exists
-    ? list.filter((p) => !(p.id === item.id && p.source === item.source))
-    : [...list, { ...item }]
-}
 
 watch(selectedId, (id) => {
   if (id) settings.value.selectedPlaylistId = id
@@ -486,7 +478,7 @@ onUnmounted(() => {
             @play-song="playCurrentSong"
             @play-all="playAllCurrent"
             @add-to-queue="audio.addToQueue"
-            @add-to-playlist="(m: any) => addSongs(selectedId, [m])"
+            @add-to-playlist="addSongs"
             @replace-to-playlist="replaceSongs"
             @update-sort="handleUpdateSort"
           />
@@ -504,13 +496,10 @@ onUnmounted(() => {
             :current-song="audio.currentSong.value"
             :open-request="pendingOnlineOpen"
             :tab="onlineTab"
+            @update:tab="onlineTab = $event"
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
-            @add-to-playlist="(m: any) => addSongs(selectedId, [m])"
-            @add-all="(musics: any) => addSongs(selectedId, musics)"
-            @download="(m: any) => downloadSong(m)"
-            @download-all="(musics: any) => downloadMany(musics)"
-            @toggle-pin="(item: any) => togglePin(item)"
+            @add-to-playlist="addSongs"
             @opened="pendingOnlineOpen = null"
           />
         </Transition>

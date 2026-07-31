@@ -130,7 +130,7 @@ function onPlay(m: MusicInfo) {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 4px 28px 20px;
+  padding: 18px 28px 20px;
   height: 100%;
   overflow: hidden;
 }

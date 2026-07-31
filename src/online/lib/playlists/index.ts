@@ -137,6 +137,13 @@ export function getPlaylistTags(source: Source): Promise<PlaylistTag[]> {
   return tagsCache(`${source}:tags`, () => fetchPlaylistTags(source))
 }
 
+// 网易云 / QQ / 酷狗的歌单详情接口忽略 `page`，一次性返回完整曲目列表。
+// 若「加载更多」仍按页重新请求，会把同一份完整列表重复追加，造成重复。
+// 因此在 wrapper 层只拉一次完整列表（缓存），再按固定页大小切片，
+// 保证「加载更多」拿到的是后续片段而非重复内容。
+const FULL_LIST_PLAYLIST_SOURCES = new Set<string>(['wy', 'tx', 'kg'])
+const DETAIL_PAGE_SIZE = 30
+
 /**
  * Fetch songs inside a playlist plus list metadata (name/cover) for the platform.
  */
@@ -145,5 +152,13 @@ export function getPlaylistDetail(
   id: string,
   page = 1
 ): Promise<PlaylistDetail> {
+  const p = Math.max(1, Math.floor(page) || 1)
+  if (FULL_LIST_PLAYLIST_SOURCES.has(source)) {
+    return detailCache(`${source}:${id}`, () => fetchPlaylistDetail(source, id, 1)).then((full) => {
+      const start = (p - 1) * DETAIL_PAGE_SIZE
+      const list = full.list.slice(start, start + DETAIL_PAGE_SIZE)
+      return { info: full.info, list }
+    })
+  }
   return detailCache(`${source}:${id}:${page}`, () => fetchPlaylistDetail(source, id, page))
 }

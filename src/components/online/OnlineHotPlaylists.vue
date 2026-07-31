@@ -103,7 +103,7 @@ watch(tagId, () => reload(1))
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 4px 28px 28px;
+  padding: 18px 28px 28px;
   height: 100%;
   overflow-y: auto;
 }

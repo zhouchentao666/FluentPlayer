@@ -107,12 +107,27 @@ export function searchAlbums(
   )
 }
 
+// 网易云 / QQ 的专辑详情接口忽略 `page`，一次性返回完整曲目列表。
+// 若「加载更多」仍按页重新请求，会把同一份完整列表重复追加，造成重复。
+// 因此在 wrapper 层只拉一次完整列表（缓存），再按固定页大小切片，
+// 保证「加载更多」拿到的是后续片段而非重复内容。
+const FULL_LIST_ALBUM_SOURCES = new Set<string>(['wy', 'tx'])
+const DETAIL_PAGE_SIZE = 30
+
 /** Album metadata + tracks; may throw on network / bad response (cached 5 min). */
 export function getAlbumDetail(
   source: OnlineSource,
   id: string,
   page = 1
 ): Promise<AlbumDetail> {
+  const p = Math.max(1, Math.floor(page) || 1)
+  if (FULL_LIST_ALBUM_SOURCES.has(source)) {
+    return detailCache(`${source}:${id}`, () => fetchAlbumDetail(source, id, 1)).then((full) => {
+      const start = (p - 1) * DETAIL_PAGE_SIZE
+      const list = full.list.slice(start, start + DETAIL_PAGE_SIZE)
+      return { info: full.info, list }
+    })
+  }
   return detailCache(`${source}:${id}:${page}`, () => fetchAlbumDetail(source, id, page))
 }
 
