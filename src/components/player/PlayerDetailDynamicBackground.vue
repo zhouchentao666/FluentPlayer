@@ -3,6 +3,7 @@ import '@applemusic-like-lyrics/core/style.css'
 import { BackgroundRender as CoreBackgroundRender, PixiRenderer } from '@applemusic-like-lyrics/core'
 import { ref, watch, onBeforeUnmount, inject, type Ref } from 'vue'
 import type { AppSettings } from '../../composables/useConfig'
+import { toDisplayableCover } from '@online/lib/coverProxy'
 
 const props = defineProps<{
   coverUrl: string | null
@@ -33,8 +34,16 @@ async function init() {
   bgRef.value.setHasLyric(props.hasLyrics ?? false)
 
   if (props.coverUrl) {
-    await bgRef.value.setAlbum(props.coverUrl, false)
+    await applyCover(props.coverUrl)
   }
+}
+
+// 在线封面多为跨域远程地址，Pixi 的 WebGL 纹理会因 CORS 而加载失败（背景变黑）。
+// 这里先经 Tauri http 代理转成 data URL，再交给动态背景。
+async function applyCover(url: string | null) {
+  if (!bgRef.value || !url) return
+  const display = await toDisplayableCover(url)
+  if (display) await bgRef.value.setAlbum(display, false)
 }
 
 function dispose() {
@@ -58,13 +67,7 @@ watch(
   { immediate: true },
 )
 
-watch(
-  () => props.coverUrl,
-  async (url) => {
-    if (!url || !bgRef.value) return
-    await bgRef.value.setAlbum(url, false)
-  },
-)
+watch(() => props.coverUrl, applyCover)
 
 watch(
   () => [settings?.value.lyricFlowSpeed, settings?.value.lyricFps],

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, inject, type Ref, nextTick } from 'vue'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
 import type { MusicInfo } from '@online/types/music'
+import type { AppSettings, PinnedOnlineItem } from '../../composables/useConfig'
 import { musicInfoToSong } from '@online/player'
 import { useOnlineSources } from '@online/store'
+import { parsePlaylistLink } from '@online/lib/playlists/openLink'
 import { toast } from '../../composables/useToast'
 import OnlineSearch from './OnlineSearch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
@@ -13,17 +15,26 @@ import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineDetail from './OnlineDetail.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
 
-const props = defineProps<{ playlists: LocalPlaylist[]; currentSong: Song | null }>()
+type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 'playlist' | 'album' }
+
+const props = defineProps<{
+  playlists: LocalPlaylist[]
+  currentSong: Song | null
+  openRequest: OpenTarget | null
+}>()
 const emit = defineEmits<{
   (e: 'play-songs', songs: Song[], index: number): void
   (e: 'add-to-queue', song: Song): void
   (e: 'add-to-playlist', playlistId: string, songs: Song[]): void
+  (e: 'opened'): void
 }>()
+
+const settings = inject<Ref<AppSettings>>('settings')
 
 type Tab = 'search' | 'playlists' | 'albums' | 'sources'
 const tab = ref<Tab>('search')
 
-const detail = ref<{ source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 'playlist' | 'album' } | null>(null)
+const detail = ref<OpenTarget | null>(null)
 const addMenu = ref<{ musics: MusicInfo[]; title: string } | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -58,6 +69,65 @@ function onDownloadAll(musics: MusicInfo[]) {
 }
 function onOpen(item: Playlist | Album, kind: 'playlist' | 'album') {
   detail.value = { source: item.source as 'wy' | 'kw' | 'kg' | 'tx' | 'mg', id: item.id, kind }
+}
+
+// 由侧栏固定项触发的「实时打开」
+watch(
+  () => props.openRequest,
+  (r) => {
+    if (r) {
+      detail.value = { ...r }
+      emit('opened')
+    }
+  },
+  { immediate: true },
+)
+
+// ---- 固定到侧栏 ----
+const pinnedList = () => settings?.value.pinnedOnlinePlaylists ?? []
+function isPinned(t: OpenTarget): boolean {
+  return pinnedList().some((p) => p.source === t.source && p.id === t.id && p.kind === t.kind)
+}
+function onTogglePin(item: PinnedOnlineItem) {
+  if (!settings) return
+  const list = settings.value.pinnedOnlinePlaylists ?? []
+  const idx = list.findIndex((p) => p.source === item.source && p.id === item.id && p.kind === item.kind)
+  if (idx >= 0) {
+    settings.value.pinnedOnlinePlaylists = list.filter((_, i) => i !== idx)
+    toast('已取消固定', 'success')
+  } else {
+    settings.value.pinnedOnlinePlaylists = [...list, item]
+    toast('已固定到侧栏', 'success')
+  }
+}
+
+// ---- 打开外部歌单 / 专辑链接 ----
+const linkModal = ref(false)
+const linkSource = ref<'wy' | 'kw' | 'kg' | 'tx' | 'mg'>('wy')
+const linkKind = ref<'playlist' | 'album'>('playlist')
+const linkText = ref('')
+const linkLoading = ref(false)
+const linkSources: { id: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; label: string }[] = [
+  { id: 'wy', label: '网易云' },
+  { id: 'kw', label: '酷我' },
+  { id: 'kg', label: '酷狗' },
+  { id: 'tx', label: 'QQ' },
+  { id: 'mg', label: '咪咕' },
+]
+async function openExternalLink() {
+  const link = linkText.value.trim()
+  if (!link) return
+  linkLoading.value = true
+  try {
+    const id = await parsePlaylistLink(linkSource.value, link)
+    detail.value = { source: linkSource.value, id, kind: linkKind.value }
+    linkModal.value = false
+    linkText.value = ''
+  } catch (err) {
+    toast((err as Error).message || '链接解析失败', 'error')
+  } finally {
+    linkLoading.value = false
+  }
 }
 
 // ---- 自定义音源 ----
@@ -109,6 +179,10 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
         <button :class="{ active: tab === 'albums' }" @click="tab = 'albums'">新碟</button>
         <button :class="{ active: tab === 'sources' }" @click="tab = 'sources'">音源</button>
       </div>
+      <button class="open-link-btn" title="打开外部歌单 / 专辑链接" @click="linkModal = true">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M6.5 9.5l3-3M7 4h4v4M9.5 6.5L12 4M4 12V6h3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        打开链接
+      </button>
     </div>
 
     <div class="body">
@@ -168,24 +242,58 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
       </div>
     </div>
 
-    <!-- 详情覆盖层 -->
-    <div v-if="detail" class="overlay">
-      <button class="back" @click="detail = null">
-        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        返回
-      </button>
-      <OnlineDetail
-        :source="detail.source"
-        :id="detail.id"
-        :kind="detail.kind"
-        :current-song="currentSong"
-        @play="onPlay"
-        @queue="onQueue"
-        @add-playlist="onAddPlaylist"
-        @download="onDownload"
-        @add-all="onAddAll"
-        @download-all="onDownloadAll"
-      />
+    <!-- 详情：从下到上的「新界面」动画 -->
+    <Transition name="slide-up">
+      <div v-if="detail" class="overlay">
+        <button class="back" @click="detail = null">
+          <svg viewBox="0 0 16 16" width="16" height="16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          返回
+        </button>
+        <OnlineDetail
+          :key="detail.source + '-' + detail.id + '-' + detail.kind"
+          :source="detail.source"
+          :id="detail.id"
+          :kind="detail.kind"
+          :current-song="currentSong"
+          :pinned="detail ? isPinned(detail) : false"
+          @play="onPlay"
+          @queue="onQueue"
+          @add-playlist="onAddPlaylist"
+          @download="onDownload"
+          @add-all="onAddAll"
+          @download-all="onDownloadAll"
+          @toggle-pin="onTogglePin"
+        />
+      </div>
+    </Transition>
+
+    <!-- 打开外部歌单 / 专辑链接 -->
+    <div v-if="linkModal" class="modal-mask" @click.self="linkModal = false">
+      <div class="link-modal">
+        <div class="link-title">打开外部歌单 / 专辑</div>
+        <div class="link-hint">粘贴分享链接（如网易云歌单 / 专辑链接），选择对应平台后打开。</div>
+        <div class="link-row">
+          <select v-model="linkSource" class="link-select">
+            <option v-for="s in linkSources" :key="s.id" :value="s.id">{{ s.label }}</option>
+          </select>
+          <div class="link-kind">
+            <button :class="{ active: linkKind === 'playlist' }" @click="linkKind = 'playlist'">歌单</button>
+            <button :class="{ active: linkKind === 'album' }" @click="linkKind = 'album'">专辑</button>
+          </div>
+          <input
+            v-model="linkText"
+            class="link-input"
+            placeholder="https://music.163.com/playlist?id=..."
+            @keyup.enter="openExternalLink"
+          />
+        </div>
+        <div class="link-actions">
+          <button class="cancel" @click="linkModal = false">取消</button>
+          <button class="confirm" :disabled="linkLoading" @click="openExternalLink">
+            {{ linkLoading ? '解析中…' : '打开' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 收藏到歌单菜单 -->
@@ -221,8 +329,26 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
 .topbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 14px 28px 6px;
   flex-shrink: 0;
+}
+.open-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--fluent-border);
+  border-radius: 10px;
+  background: var(--fluent-bg-card);
+  color: var(--fluent-text);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.open-link-btn:hover {
+  background: var(--fluent-bg-hover);
 }
 .tabs {
   display: inline-flex;
@@ -257,6 +383,16 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  will-change: transform;
+}
+/* 从下到上的「新界面」动画 */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
 }
 .back {
   display: inline-flex;
@@ -488,5 +624,109 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   background: transparent;
   color: var(--fluent-text-secondary);
   cursor: pointer;
+}
+
+/* 打开外部链接弹窗 */
+.link-modal {
+  width: 440px;
+  max-width: 92%;
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--fluent-border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.link-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fluent-text);
+  margin-bottom: 8px;
+}
+.link-hint {
+  font-size: 12.5px;
+  color: var(--fluent-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.link-row {
+  display: flex;
+  gap: 10px;
+}
+.link-select {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--fluent-input-border);
+  background: var(--fluent-input-bg);
+  color: var(--fluent-text);
+  padding: 0 10px;
+  outline: none;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.link-kind {
+  display: inline-flex;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--fluent-input-border);
+  background: var(--fluent-input-bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.link-kind button {
+  border: none;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  font-size: 13px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.link-kind button.active {
+  background: var(--fluent-accent);
+  color: #fff;
+}
+.link-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--fluent-input-border);
+  background: var(--fluent-input-bg);
+  color: var(--fluent-text);
+  outline: none;
+  font-size: 13px;
+}
+.link-input:focus,
+.link-select:focus {
+  border-color: var(--fluent-accent);
+}
+.link-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.link-actions .cancel {
+  width: auto;
+  margin: 0;
+  padding: 0 18px;
+  background: var(--fluent-bg-card);
+  color: var(--fluent-text);
+}
+.link-actions .confirm {
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fluent-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.link-actions .confirm:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 </style>

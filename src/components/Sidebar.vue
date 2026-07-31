@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { type Playlist } from '../types'
+import type { PinnedOnlineItem } from '../composables/useConfig'
 import PlaylistItem from './sidebar/PlaylistItem.vue'
 import PlaylistCreateInput from './sidebar/PlaylistCreateInput.vue'
 
@@ -8,6 +9,7 @@ const props = defineProps<{
   playlists: Playlist[]
   selectedId: string
   activeView?: 'main' | 'settings' | 'online'
+  pinnedOnline?: PinnedOnlineItem[]
 }>()
 
 const emit = defineEmits<{
@@ -16,8 +18,15 @@ const emit = defineEmits<{
   (e: 'open-settings'): void
   (e: 'open-online'): void
   (e: 'select', id: string): void
+  (e: 'open-online-item', item: PinnedOnlineItem): void
+  (e: 'unpin-online', id: string): void
   (e: 'drop-songs', payload: { targetPlaylistId: string; sourcePlaylistId: string; songIds: string[] }): void
 }>()
+
+const sourceLabels: Record<string, string> = { wy: '网易云', kw: '酷我', kg: '酷狗', tx: 'QQ', mg: '咪咕' }
+function sourceLabel(s: string) {
+  return sourceLabels[s] ?? s
+}
 
 const isCreating = ref(false)
 
@@ -113,6 +122,26 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
         <span class="icon">+</span>
         <span>新建歌单</span>
       </button>
+
+      <div v-if="pinnedOnline && pinnedOnline.length" class="pinned-block">
+        <div class="section-title">在线歌单</div>
+        <ul class="pinned-list">
+          <li
+            v-for="item in pinnedOnline"
+            :key="item.source + '-' + item.id + '-' + item.kind"
+            class="pinned-item"
+            @click="emit('open-online-item', item)"
+          >
+            <img v-if="item.img" :src="item.img" class="pinned-cover" alt="" />
+            <div v-else class="pinned-cover placeholder"></div>
+            <div class="pinned-meta">
+              <div class="pinned-name">{{ item.name || '未知' }}</div>
+              <div class="pinned-badge">{{ sourceLabel(item.source) }} · {{ item.kind === 'album' ? '专辑' : '歌单' }}</div>
+            </div>
+            <button class="pinned-unpin" title="取消固定" @click.stop="emit('unpin-online', item.id)">×</button>
+          </li>
+        </ul>
+      </div>
     </div>
     <div class="bottom">
       <button
@@ -206,6 +235,83 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
 .settings-btn .icon svg {
   width: 16px;
   height: 16px;
+}
+
+/* 固定到侧栏的在线歌单 / 专辑 */
+.pinned-block {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fluent-border);
+}
+.pinned-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pinned-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.pinned-item:hover {
+  background: var(--fluent-bg-hover);
+}
+.pinned-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--fluent-bg-card);
+}
+.pinned-cover.placeholder {
+  background: var(--fluent-bg-active);
+}
+.pinned-meta {
+  flex: 1;
+  min-width: 0;
+}
+.pinned-name {
+  font-size: 13px;
+  color: var(--fluent-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pinned-badge {
+  font-size: 11px;
+  color: var(--fluent-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pinned-unpin {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+.pinned-item:hover .pinned-unpin {
+  opacity: 1;
+}
+.pinned-unpin:hover {
+  background: var(--fluent-bg-active);
+  color: var(--fluent-text);
 }
 
 .bottom {

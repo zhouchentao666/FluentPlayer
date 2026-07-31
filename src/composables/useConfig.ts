@@ -111,12 +111,22 @@ export interface AppSettings {
   selectedPlaylistId: string
   playlistSorts: Record<string, PlaylistSort>
   localMetadata: Record<string, LocalSongMetadata>
+  pinnedOnlinePlaylists: PinnedOnlineItem[]
 }
 
 export interface ConfigPlayback {
   playlistId: string
   songIndex: number
   time: number
+}
+
+// 固定到侧栏的在线歌单 / 专辑（打开时实时拉取，而非本地快照）
+export interface PinnedOnlineItem {
+  source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'
+  id: string
+  kind: 'playlist' | 'album'
+  name: string
+  img: string | null
 }
 
 function parseDesktopLyricConfig(raw: unknown): DesktopLyricConfig {
@@ -205,6 +215,7 @@ export function useConfig(
           selectedPlaylistId: (config.settings.selectedPlaylistId as string) ?? '',
           playlistSorts: (config.settings.playlistSorts as Record<string, PlaylistSort>) ?? {},
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
+          pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
         }
       }
       if (config.playback) {

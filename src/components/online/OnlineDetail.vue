@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import type { MusicInfo } from '@online/types/music'
 import type { Song } from '../../types'
+import type { PinnedOnlineItem } from '../../composables/useConfig'
 import { getPlaylistDetail } from '@online/lib/playlists'
 import { getAlbumDetail } from '@online/lib/albums'
 import OnlineSongRow from './OnlineSongRow.vue'
@@ -11,6 +12,7 @@ const props = defineProps<{
   id: string
   kind: 'playlist' | 'album'
   currentSong: Song | null
+  pinned?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   (e: 'download', m: MusicInfo): void
   (e: 'add-all', musics: MusicInfo[]): void
   (e: 'download-all', musics: MusicInfo[]): void
+  (e: 'toggle-pin', item: PinnedOnlineItem): void
 }>()
 
 interface DetailInfo {
@@ -64,6 +67,16 @@ function onPlay(m: MusicInfo) {
   emit('play', list.value, idx >= 0 ? idx : 0)
 }
 
+function onTogglePin() {
+  emit('toggle-pin', {
+    source: props.source,
+    id: props.id,
+    kind: props.kind,
+    name: info.value?.name ?? '',
+    img: info.value?.img ?? null,
+  })
+}
+
 onMounted(() => load(1))
 </script>
 
@@ -88,6 +101,18 @@ onMounted(() => load(1))
             </button>
             <button class="ghost" @click="emit('add-all', list)">收藏歌单</button>
             <button class="ghost" @click="emit('download-all', list)">下载全部</button>
+            <button class="ghost pin" :class="{ active: pinned }" @click="onTogglePin">
+              <svg viewBox="0 0 16 16" width="14" height="14">
+                <path
+                  d="M5 2.5h6l-0.6 2.2 2.1 2.3-2.9 0.2 1.1 3-2.7-1.8-2.7 1.8 1.1-3-2.9-0.2 2.1-2.3z"
+                  :fill="pinned ? 'currentColor' : 'none'"
+                  stroke="currentColor"
+                  stroke-width="1.1"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              {{ pinned ? '已固定' : '固定到侧栏' }}
+            </button>
           </div>
         </div>
       </div>

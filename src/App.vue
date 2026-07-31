@@ -68,6 +68,7 @@ const settings = ref<AppSettings>({
   selectedPlaylistId: '',
   playlistSorts: {},
   localMetadata: {},
+  pinnedOnlinePlaylists: [],
 })
 
 const playbackState = ref<ConfigPlayback>({
@@ -225,6 +226,17 @@ function onSelectPlaylist(id: string) {
   selectPlaylist(id)
   settings.value.selectedPlaylistId = id
   view.value = 'main'
+}
+
+// 由侧栏固定项实时打开在线歌单 / 专辑
+type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 'playlist' | 'album' }
+const pendingOnlineOpen = ref<OpenTarget | null>(null)
+function openOnlineItem(item: OpenTarget) {
+  pendingOnlineOpen.value = { ...item }
+  view.value = 'online'
+}
+function unpinOnlineItem(id: string) {
+  settings.value.pinnedOnlinePlaylists = settings.value.pinnedOnlinePlaylists.filter((p) => p.id !== id)
 }
 
 watch(selectedId, (id) => {
@@ -400,11 +412,14 @@ onUnmounted(() => {
         :playlists="playlists"
         :selected-id="selectedId"
         :active-view="view"
+        :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
         @update:selected-id="selectedId = $event"
         @open-settings="view = 'settings'"
         @open-online="view = 'online'"
         @select="onSelectPlaylist"
+        @open-online-item="openOnlineItem"
+        @unpin-online="unpinOnlineItem"
         @drop-songs="handleDropSongs"
       />
       <main class="main">
@@ -438,9 +453,11 @@ onUnmounted(() => {
             :key="'online'"
             :playlists="playlists"
             :current-song="audio.currentSong.value"
+            :open-request="pendingOnlineOpen"
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
             @add-to-playlist="addSongs"
+            @opened="pendingOnlineOpen = null"
           />
         </Transition>
       </main>
