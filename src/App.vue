@@ -478,7 +478,7 @@ onUnmounted(() => {
             @play-song="playCurrentSong"
             @play-all="playAllCurrent"
             @add-to-queue="audio.addToQueue"
-            @add-to-playlist="addSongs"
+            @add-to-playlist="(m: any) => addSongs(selectedId, [m])"
             @replace-to-playlist="replaceSongs"
             @update-sort="handleUpdateSort"
           />
@@ -496,10 +496,9 @@ onUnmounted(() => {
             :current-song="audio.currentSong.value"
             :open-request="pendingOnlineOpen"
             :tab="onlineTab"
-            @update:tab="onlineTab = $event"
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
-            @add-to-playlist="addSongs"
+            @add-to-playlist="(m: any) => addSongs(selectedId, [m])"
             @opened="pendingOnlineOpen = null"
           />
         </Transition>

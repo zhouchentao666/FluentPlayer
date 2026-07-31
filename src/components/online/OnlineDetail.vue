@@ -36,6 +36,8 @@ const page = ref(1)
 const loading = ref(false)
 const loadingMore = ref(false)
 const coverFailed = ref(false)
+const noMore = ref(false)
+const loadedIds = new Set<string>()
 
 const currentId = computed(() => props.currentSong?.online?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
@@ -52,8 +54,14 @@ async function load(p: number, append = false) {
       info.value = res.info as DetailInfo
       list.value = res.list
       coverFailed.value = false
+      loadedIds.clear()
+      for (const m of res.list) loadedIds.add(m.id)
+      noMore.value = res.list.length === 0
     } else {
-      list.value = [...list.value, ...res.list]
+      const fresh = res.list.filter((m) => !loadedIds.has(m.id))
+      for (const m of fresh) loadedIds.add(m.id)
+      list.value = [...list.value, ...fresh]
+      noMore.value = fresh.length === 0
     }
     page.value = p
   } finally {
@@ -131,9 +139,15 @@ onMounted(() => load(1))
         />
       </div>
 
-      <button class="load-more" :disabled="loadingMore" @click="load(page + 1, true)">
+      <button
+        v-if="!noMore"
+        class="load-more"
+        :disabled="loadingMore"
+        @click="load(page + 1, true)"
+      >
         {{ loadingMore ? '加载中…' : '加载更多' }}
       </button>
+      <div v-else class="state">没有更多了</div>
     </template>
   </div>
 </template>
