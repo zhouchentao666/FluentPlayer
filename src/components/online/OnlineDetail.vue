@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+
+/** 在线歌单不支持批量选择，传入空集合即可。 */
+const emptySet = new Set<string>()
 import type { MusicInfo } from '@online/types/music'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { PinnedOnlineItem } from '../../composables/useConfig'
@@ -8,13 +11,6 @@ import { getAlbumDetail } from '@online/lib/albums'
 import { musicInfoToSong } from '@online/player'
 import PlaylistViewList from '../PlaylistViewList.vue'
 import { toast } from '../../composables/useToast'
-
-/** 在线歌单不支持批量选择，传入空集合即可。 */
-const emptySet = new Set<string>()
-/** 每页大小与 wrapper 切片保持一致（见 playlists/albums/index.ts）。 */
-const PAGE_SIZE = 30
-/** 自动加载相邻页的时间间隔，避免触发平台风控。 */
-const PAGE_INTERVAL_MS = 1000
 
 const props = defineProps<{
   source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'
@@ -32,7 +28,6 @@ const emit = defineEmits<{
   (e: 'download', song: Song): void
   (e: 'add-all', playlistId: string, songs: Song[]): void
   (e: 'download-all', songs: Song[]): void
-  (e: 'open-download', songs: Song[]): void
   (e: 'toggle-pin', item: PinnedOnlineItem): void
   (e: 'back'): void
 }>()
@@ -46,9 +41,11 @@ const info = ref<DetailInfo | null>(null)
 const list = ref<MusicInfo[]>([])
 const page = ref(1)
 const loading = ref(false)
-const autoLoading = ref(false)
-const loadingError = ref(false)
+const loadingMore = ref(false)
 const coverFailed = ref(false)
+/** 自动加载全部：每 1s 翻一页 */
+const autoLoading = ref(false)
+let autoTimer: ReturnType<typeof setTimeout> | null = null
 
 const currentId = computed(() => props.currentSong?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
@@ -67,16 +64,9 @@ function confirmCollect(plId: string) {
   toast('已添加到歌单', 'success')
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-/**
- * 加载第 p 页；返回是否还有更多。
- * wy/tx/kg 在 wrapper 层已缓存完整列表并按固定页大小切片，最后一页会得到空切片；
- * kw/mg 为真实分页，本页不满一页即视为到底。两种来源都能正确收敛。
- */
-async function load(p: number, append = false): Promise<boolean> {
+async function load(p: number): Promise<number> {
   if (p === 1) loading.value = true
-  else autoLoading.value = true
+  else loadingMore.value = true
   try {
     const res =
       props.kind === 'album'
@@ -90,31 +80,35 @@ async function load(p: number, append = false): Promise<boolean> {
       list.value = [...list.value, ...res.list]
     }
     page.value = p
-    return res.list.length >= PAGE_SIZE
-  } catch (err) {
-    loadingError.value = true
-    throw err
+    return res.list.length
   } finally {
     loading.value = false
-    autoLoading.value = false
+    loadingMore.value = false
   }
 }
 
-/** 打开即自动加载全部内容，每两页之间停顿 1s，避免触发平台风控。 */
-async function loadAll() {
-  loading.value = true
-  try {
-    let p = 1
-    let more = true
-    while (more && !loadingError.value) {
-      more = await load(p, p > 1)
-      if (more) {
-        if (p > 1) await sleep(PAGE_INTERVAL_MS)
-        p++
-      }
-    }
-  } finally {
-    loading.value = false
+/** 每 1s 自动加载下一页，直到本页返回为空或不足一页（一页 30 首）。 */
+async function loadNext() {
+  if (!autoLoading.value) return
+  if (loadingMore.value) {
+    // 上一页还在加载，稍后再试，避免并发请求
+    autoTimer = setTimeout(loadNext, 1000)
+    return
+  }
+  const n = await load(page.value + 1)
+  if (n === 0 || n < 30) {
+    autoLoading.value = false
+    autoTimer = null
+    return
+  }
+  autoTimer = setTimeout(loadNext, 1000)
+}
+
+function stopAuto() {
+  autoLoading.value = false
+  if (autoTimer) {
+    clearTimeout(autoTimer)
+    autoTimer = null
   }
 }
 
@@ -133,9 +127,14 @@ function onTogglePin() {
   })
 }
 
-onMounted(() => {
-  loadAll()
+onMounted(async () => {
+  const n = await load(1)
+  if (n > 0) {
+    autoLoading.value = true
+    autoTimer = setTimeout(loadNext, 1000)
+  }
 })
+onUnmounted(stopAuto)
 </script>
 
 <template>
@@ -162,7 +161,7 @@ onMounted(() => {
               播放全部
             </button>
             <button class="ghost" @click="openCollectMenu">收藏歌单</button>
-            <button class="ghost" @click="emit('open-download', songList)">下载全部</button>
+            <button class="ghost" @click="emit('download-all', songList)">下载全部</button>
             <button class="ghost pin" :class="{ active: pinned }" @click="onTogglePin">
               <svg viewBox="0 0 16 16" width="14" height="14">
                 <path
@@ -190,10 +189,7 @@ onMounted(() => {
         @play="onPlaySong"
         @add-to-queue="(s) => emit('queue', s)"
         @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
-        @download="(s: Song) => emit('open-download', [s])"
       />
-
-      <div v-if="autoLoading" class="loading-more">正在加载第 {{ page + 1 }} 页…</div>
 
       <!-- 收藏整张歌单：选择本地歌单 -->
       <div v-if="collectMenu" class="modal-mask" @click.self="collectMenu = null">
@@ -222,8 +218,8 @@ onMounted(() => {
 .detail {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 22px 28px 28px;
+  gap: 14px;
+  padding: 16px 22px 24px;
   height: 100%;
   overflow-y: auto;
 }
@@ -323,13 +319,13 @@ onMounted(() => {
   gap: 16px;
 }
 .cover-wrap {
-  width: 128px;
-  height: 128px;
+  width: 96px;
+  height: 96px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--fluent-bg-card);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
 }
 .cover {
   width: 100%;
@@ -340,7 +336,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--fluent-text-secondary);
   background: linear-gradient(135deg, var(--fluent-bg-active), var(--fluent-bg-card));
@@ -356,7 +352,7 @@ onMounted(() => {
   color: var(--fluent-text-secondary);
 }
 .name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   color: var(--fluent-text);
   margin: 0;
@@ -372,48 +368,34 @@ onMounted(() => {
 }
 .buttons {
   display: flex;
-  gap: 12px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 6px;
 }
 .play-all {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 22px;
+  height: 34px;
+  padding: 0 20px;
   border: none;
   border-radius: 10px;
   background: var(--fluent-accent);
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 .ghost {
-  height: 38px;
-  padding: 0 18px;
+  height: 34px;
+  padding: 0 16px;
   border: 1px solid var(--fluent-border);
   border-radius: 10px;
   background: var(--fluent-bg-card);
   color: var(--fluent-text);
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
 }
 .ghost:hover {
   background: var(--fluent-bg-hover);
-}
-.load-more {
-  align-self: center;
-  margin-top: 8px;
-  border: 1px solid var(--fluent-border);
-  background: var(--fluent-bg-card);
-  color: var(--fluent-text);
-  padding: 8px 22px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-.load-more:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 </style>

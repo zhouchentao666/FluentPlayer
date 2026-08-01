@@ -131,34 +131,3 @@ export function DownloadFile(
 ): Promise<{ size: number; path: string; duration_ms: number }> {
   return invoke('download_file', { url, dest, headers: headers ?? null })
 }
-
-/** 带元数据/歌词/封面内嵌的下载。 */
-export function DownloadSong(
-  url: string,
-  dest: string,
-  headers: Record<string, string> | null,
-  meta: {
-    title: string
-    artist: string
-    album: string
-    album_artist?: string | null
-    track_number?: number | null
-    genre?: string | null
-    year?: number | null
-    cover_url?: string | null
-    lyric?: string | null
-  } | null,
-  embed_metadata: boolean,
-  embed_lyric: boolean,
-  embed_cover: boolean,
-): Promise<{ size: number; path: string; duration_ms: number }> {
-  return invoke('download_song', {
-    url,
-    dest,
-    headers: headers ?? null,
-    meta: meta ?? null,
-    embedMetadata: embed_metadata,
-    embedLyric: embed_lyric,
-    embedCover: embed_cover,
-  })
-}

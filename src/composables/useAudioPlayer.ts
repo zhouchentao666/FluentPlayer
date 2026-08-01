@@ -101,39 +101,9 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     }
   }
 
-  /** 重新按当前偏好音质拉取在线直链并恢复播放进度（用于播放栏切换音质）。 */
-  async function reloadQuality() {
-    const song = currentSong.value
-    if (!song?.online || !audioRef.value) return
-    const el = audioRef.value
-    const saved = el.currentTime
-    const wasPlaying = isPlaying.value
-    try {
-      const { url, quality } = await resolveOnlineUrl(song.online)
-      if (currentSong.value?.id !== song.id || !audioRef.value) return
-      activeQuality.value = quality
-      el.src = url
-      await new Promise<void>((resolve) => {
-        const onMeta = () => {
-          el.removeEventListener('loadedmetadata', onMeta)
-          resolve()
-        }
-        el.addEventListener('loadedmetadata', onMeta)
-        el.load()
-      })
-      el.currentTime = saved
-      el.playbackRate = playbackRate.value
-      if (wasPlaying) {
-        await el.play()
-        isPlaying.value = true
-      }
-    } catch (err) {
-      toast(`音质切换失败：${(err as Error).message}`, 'error')
-    }
-  }
-
   // 播放队列中第 i 首
-  async function playQueueAt(i: number, autoPlay = true) {    const song = queue.value[i]
+  async function playQueueAt(i: number, autoPlay = true) {
+    const song = queue.value[i]
     if (!song) return
     index.value = i
     await playLocal(song, autoPlay)
@@ -261,7 +231,5 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     seek,
     setVolume,
     setPlaybackRate,
-    reloadQuality,
-    activeQuality,
   }
 }

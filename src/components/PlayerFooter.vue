@@ -1,7 +1,6 @@
 <script lang="ts" setup>
-import { ref } from 'vue'
 import { type Song } from '../types'
-import { QUALITY_LADDER, QUALITY_SHORT, type Quality } from '@online/player'
+import { ref } from 'vue'
 import ProgressBar from './player/ProgressBar.vue'
 import SongInfo from './player/SongInfo.vue'
 import PlayerControls, { type PlayMode } from './player/PlayerControls.vue'
@@ -20,12 +19,9 @@ defineProps<{
   playMode: PlayMode
   immersive?: boolean
   desktopLyricEnabled?: boolean
-  quality?: Quality | null
-  availableQualities?: Quality[]
 }>()
 
 const isHovered = ref(false)
-const qualityPop = ref(false)
 
 const emit = defineEmits<{
   (e: 'toggle-play'): void
@@ -38,7 +34,6 @@ const emit = defineEmits<{
   (e: 'cycle-mode'): void
   (e: 'toggle-queue'): void
   (e: 'toggle-desktop-lyric'): void
-  (e: 'quality-change', q: Quality): void
 }>()
 
 function formatDuration(seconds: number): string {
@@ -46,16 +41,6 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-/** 按音质阶梯从低到高排列可切换选项。 */
-function qualityOptions(available?: Quality[]): Quality[] {
-  const set = new Set(available ?? [])
-  return QUALITY_LADDER.filter((q) => set.has(q))
-}
-function pickQuality(q: Quality) {
-  qualityPop.value = false
-  emit('quality-change', q)
 }
 </script>
 
@@ -94,25 +79,6 @@ function pickQuality(q: Quality) {
       </div>
 
       <div class="section right" :class="{ faded: immersive && !isHovered }">
-        <button
-          v-if="currentSong?.online && (availableQualities?.length ?? 0) > 0"
-          class="quality-btn"
-          :class="{ active: qualityPop }"
-          @click="qualityPop = !qualityPop"
-        >
-          {{ quality ? QUALITY_SHORT[quality] : '' }}
-          <div v-if="qualityPop" class="quality-pop" @click.stop>
-            <div
-              v-for="q in qualityOptions(availableQualities)"
-              :key="q"
-              class="quality-item"
-              :class="{ active: q === quality }"
-              @click="pickQuality(q)"
-            >
-              {{ QUALITY_SHORT[q] }}
-            </div>
-          </div>
-        </button>
         <span class="time-label">{{ formatDuration(currentTime) }} / {{ formatDuration(duration || 0) }}</span>
         <button
           class="side-btn lyric-btn"

@@ -17,7 +17,7 @@ import Settings from './components/Settings.vue'
 import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
 import OnlineDetail from './components/online/OnlineDetail.vue'
-import DownloadDialog from './components/DownloadDialog.vue'
+import { downloadSong, downloadMany } from './online/lib/download'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
@@ -33,8 +33,7 @@ import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
-import { setPreferredQuality, musicInfoToSong, type Quality } from './online/player'
-import type { MusicInfo } from './online/types/music'
+import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
 
 const view = ref<'main' | 'settings' | 'online' | 'online-detail'>('main')
@@ -97,9 +96,10 @@ provide('settings', settings)
 
 // 设置里的音质偏好同步到在线播放 / 下载模块
 watch(
-  () => settings.value.playQuality,
-  (play) => {
+  () => [settings.value.playQuality, settings.value.downloadQuality] as const,
+  ([play, download]) => {
     if (play) setPreferredQuality(play)
+    if (download) setDownloadQuality(download)
   },
   { immediate: true },
 )
@@ -272,23 +272,12 @@ function openOnlineItem(item: OpenTarget) {
   onlineDetail.value = { ...item }
   view.value = 'online-detail'
 }
-// 打开下载浮窗（在线歌曲下载统一走此设置弹层）
-const downloadDialogSongs = ref<Song[]>([])
-function openDownloadDialog(songs: Song[]) {
-  downloadDialogSongs.value = songs.filter((s) => s.online)
-  if (downloadDialogSongs.value.length === 0) return
-}
 function openOnline(tab: OnlineTab) {
   onlineTab.value = tab
   view.value = 'online'
 }
 function unpinOnlineItem(id: string) {
   settings.value.pinnedOnlinePlaylists = settings.value.pinnedOnlinePlaylists.filter((p) => p.id !== id)
-}
-/** 播放栏点击音质：更新偏好并用新音质重新拉取在线直链（保持播放进度）。 */
-function onQualityChange(q: Quality) {
-  setPreferredQuality(q)
-  audio.reloadQuality()
 }
 function onTogglePinOnline(item: PinnedOnlineItem) {
   const list = settings.value.pinnedOnlinePlaylists
@@ -518,7 +507,6 @@ onUnmounted(() => {
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
             @add-to-playlist="addSongs"
-            @download="(m: MusicInfo) => openDownloadDialog([musicInfoToSong(m)])"
             @open-detail="openOnlineItem"
           />
           <OnlineDetail
@@ -533,9 +521,9 @@ onUnmounted(() => {
             @play="(songs, index) => audio.playSongs(songs, index)"
             @queue="audio.addToQueue"
             @add-playlist="(pid, song) => addSongs(pid, [song])"
-            @download="(song) => openDownloadDialog([song])"
+            @download="(song) => song.online && downloadSong(song.online)"
             @add-all="(pid, songs) => addSongs(pid, songs)"
-            @download-all="(songs) => openDownloadDialog(songs)"
+            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
             @toggle-pin="onTogglePinOnline"
             @back="view = 'online'"
           />
@@ -554,9 +542,6 @@ onUnmounted(() => {
       :play-mode="playMode"
       :immersive="settings.immersivePlayerBar"
       :desktop-lyric-enabled="settings.desktopLyric.enabled"
-      :quality="audio.activeQuality.value"
-      :available-qualities="audio.currentSong.value?.online?.meta.qualitys.map((q) => q.type)"
-      @quality-change="onQualityChange"
       @toggle-play="handleTogglePlay"
       @prev="playPrev"
       @next="playNext"
@@ -594,13 +579,6 @@ onUnmounted(() => {
       @clear="audio.clearQueue"
     />
     <audio ref="audioRef" style="display: none;"></audio>
-
-    <DownloadDialog
-      v-if="downloadDialogSongs.length > 0"
-      :songs="downloadDialogSongs"
-      @cancel="downloadDialogSongs = []"
-      @done="downloadDialogSongs = []"
-    />
   </div>
 </template>
 
