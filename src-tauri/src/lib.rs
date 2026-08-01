@@ -21,17 +21,6 @@ pub fn run() {
         ))
         .manage(commands::watcher::WatcherState::default())
         .manage(commands::tray::TrayState::default())
-        .on_window_event(|window, event| {
-            // `editor` 与 `desktop-lyric` 为预定义静态窗口，关闭时改为隐藏
-            // 而非销毁，这样下次仍可重新显示（避免销毁后无法再创建）。
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let label = window.label();
-                if label == "editor" || label == "desktop-lyric" {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             // 对话框
             commands::dialogs::open_music_files,
