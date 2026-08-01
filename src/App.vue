@@ -524,9 +524,6 @@ onUnmounted(() => {
             @download="(song) => song.online && downloadSong(song.online)"
             @add-all="(pid, songs) => addSongs(pid, songs)"
             @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
-            @batch-download="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
-            @add-to-playlist="(pid, songs) => addSongs(pid, songs)"
-            @replace-to-playlist="(pid, songs) => replaceSongs(pid, songs)"
             @toggle-pin="onTogglePinOnline"
             @back="view = 'online'"
           />
