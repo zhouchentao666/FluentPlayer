@@ -40,13 +40,16 @@ pub async fn toggle_desktop_lyric(app: AppHandle, enabled: bool) -> Result<(), S
     )
     .title("桌面歌词")
     .decorations(false)
-    .transparent(true)
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(true)
     .maximizable(false)
     .minimizable(false)
+    // transparent 受条件编译约束：仅当启用 macos-private-api 或非 macOS 平台才存在该方法。
+    // 与 tauri 内部一致，避免在 macOS 未开启该 feature 时编译失败。
+    #[cfg(any(feature = "macos-private-api", not(target_os = "macos")))]
+    .transparent(true)
     .inner_size(width, height)
     .build()
     .map_err(|e| format!("创建桌面歌词窗口失败: {e}"))?;
