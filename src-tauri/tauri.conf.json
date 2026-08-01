@@ -25,6 +25,31 @@
         "windowEffects": {
           "effects": ["acrylic", "mica"]
         }
+      },
+      {
+        "label": "desktop-lyric",
+        "title": "桌面歌词",
+        "width": 800,
+        "height": 180,
+        "transparent": true,
+        "decorations": false,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "url": "index.html?desktopLyric=1"
+      },
+      {
+        "label": "editor",
+        "title": "歌曲信息",
+        "width": 640,
+        "height": 760,
+        "minWidth": 520,
+        "minHeight": 600,
+        "transparent": true,
+        "decorations": false,
+        "center": true,
+        "visible": false,
+        "url": "index.html?editor=1"
       }
     ],
     "security": {

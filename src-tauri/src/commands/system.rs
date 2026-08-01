@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
 /// 在资源管理器中定位文件
@@ -78,20 +78,18 @@ pub fn emit_metadata_changed(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String> {
     const LABEL: &str = "editor";
-    // 已存在则先销毁再按新歌曲重建（URL query 携带歌曲路径）
-    if let Some(win) = app.get_webview_window(LABEL) {
-        let _ = win.destroy();
-    }
+    let win = app
+        .get_webview_window(LABEL)
+        .ok_or_else(|| "编辑器窗口未初始化".to_string())?;
+    // 携带歌曲路径重新加载编辑器页面（URL query 携带歌曲路径）
     let url = format!("index.html?editor=1&path={}", urlencoding::encode(&path));
-    WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App(url.into()))
-        .title("歌曲信息")
-        .inner_size(640.0, 760.0)
-        .min_inner_size(520.0, 600.0)
-        .decorations(false)
-        .transparent(true)
-        .center()
-        .build()
-        .map_err(|e| format!("创建编辑器窗口失败: {e}"))?;
+    win.eval(&format!(
+        "window.location.assign({:?})",
+        url
+    ))
+    .map_err(|e| format!("加载编辑器窗口失败: {e}"))?;
+    let _ = win.show();
+    let _ = win.set_focus();
     Ok(())
 }
 
