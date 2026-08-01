@@ -28,15 +28,8 @@ jobs:
         with:
           node-version: 20
 
-      # GitHub-hosted runners (windows / ubuntu / macos) ship Rust stable
-      # preinstalled. Installing the toolchain via dtolnay/rust-toolchain
-      # triggers a network fetch of channel-rust-stable.toml, which fails on
-      # runners without internet access (DNS error). Reuse the preinstalled
-      # toolchain instead so all three platforms build reliably.
-      - name: Verify Rust toolchain
-        run: |
-          rustc --version
-          cargo --version
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: actions/cache@v4

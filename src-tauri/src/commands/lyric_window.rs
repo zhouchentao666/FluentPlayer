@@ -1,6 +1,4 @@
-use tauri::{
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewBuilder, WebviewUrl, WindowBuilder,
-};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
 use super::config::desktop_lyric_value;
 
@@ -20,31 +18,11 @@ pub async fn toggle_desktop_lyric(app: AppHandle, enabled: bool) -> Result<(), S
         return Ok(());
     }
 
-    // 已存在则直接显示并应用保存的布局/锁定状态
     if let Some(win) = app.get_webview_window(LABEL) {
-        let cfg = desktop_lyric_value(&app);
-        let width = num(&cfg, "width", 800.0).max(200.0);
-        let height = num(&cfg, "height", 180.0).max(80.0);
-        let x = num(&cfg, "x", 0.0);
-        let y = num(&cfg, "y", 0.0);
-        let is_lock = cfg
-            .get("isLock")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        let _ = win.set_size(PhysicalSize::new(width as u32, height as u32));
-        if x != 0.0 || y != 0.0 {
-            let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
-        }
-        if is_lock {
-            let _ = win.set_ignore_cursor_events(true);
-        }
         let _ = win.show();
         return Ok(());
     }
 
-    // 按需创建透明窗口：WindowBuilder 提供稳定的 transparent()，
-    // 再附加 WebviewBuilder 加载前端页面。
     let cfg = desktop_lyric_value(&app);
     let width = num(&cfg, "width", 800.0).max(200.0);
     let height = num(&cfg, "height", 180.0).max(80.0);
@@ -55,32 +33,29 @@ pub async fn toggle_desktop_lyric(app: AppHandle, enabled: bool) -> Result<(), S
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let window = WindowBuilder::new(&app, LABEL)
-        .title("桌面歌词")
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .resizable(true)
-        .maximizable(false)
-        .minimizable(false)
-        .inner_size(width, height)
-        .build()
-        .map_err(|e| format!("创建桌面歌词窗口失败: {e}"))?;
-
-    WebviewBuilder::new(
+    let win = WebviewWindowBuilder::new(
+        &app,
         LABEL,
         WebviewUrl::App("index.html?desktopLyric=1".into()),
     )
-    .build(&window)
-    .map_err(|e| format!("创建桌面歌词 webview 失败: {e}"))?;
+    .title("桌面歌词")
+    .decorations(false)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(true)
+    .maximizable(false)
+    .minimizable(false)
+    .inner_size(width, height)
+    .build()
+    .map_err(|e| format!("创建桌面歌词窗口失败: {e}"))?;
 
     if x != 0.0 || y != 0.0 {
-        let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
+        let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
+        let _ = win.set_size(PhysicalSize::new(width as u32, height as u32));
     }
     if is_lock {
-        let _ = window.set_ignore_cursor_events(true);
+        let _ = win.set_ignore_cursor_events(true);
     }
     Ok(())
 }
