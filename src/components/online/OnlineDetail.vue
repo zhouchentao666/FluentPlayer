@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-
-/** 在线歌单不支持批量选择，传入空集合即可。 */
-const emptySet = new Set<string>()
+import { ref, onMounted, onUnmounted, computed, toRaw, watch } from 'vue'
 import type { MusicInfo } from '@online/types/music'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { PinnedOnlineItem } from '../../composables/useConfig'
@@ -10,6 +7,9 @@ import { getPlaylistDetail } from '@online/lib/playlists'
 import { getAlbumDetail } from '@online/lib/albums'
 import { musicInfoToSong } from '@online/player'
 import PlaylistViewList from '../PlaylistViewList.vue'
+import PlaylistViewToolbar from '../PlaylistViewToolbar.vue'
+import PlaylistBatchBar from '../PlaylistBatchBar.vue'
+import { usePlaylistView, type SortMode, type SortOrder } from '../../composables/usePlaylistView'
 import { toast } from '../../composables/useToast'
 
 const props = defineProps<{
@@ -30,6 +30,9 @@ const emit = defineEmits<{
   (e: 'download-all', songs: Song[]): void
   (e: 'toggle-pin', item: PinnedOnlineItem): void
   (e: 'back'): void
+  (e: 'batch-download', songs: Song[]): void
+  (e: 'add-to-playlist', playlistId: string, songs: Song[]): void
+  (e: 'replace-to-playlist', playlistId: string, songs: Song[]): void
 }>()
 
 interface DetailInfo {
@@ -51,6 +54,49 @@ const currentId = computed(() => props.currentSong?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
 /** 与本地歌单共用统一的歌曲列表组件 */
 const songList = computed(() => list.value.map(musicInfoToSong))
+
+// 复用本地歌单的搜索 / 排序 / 批量选择逻辑（传入一个临时的 Playlist 视图）
+const viewPlaylist = computed<LocalPlaylist>(() => ({
+  id: `${props.source}:${props.id}:${props.kind}`,
+  name: info.value?.name ?? '',
+  songs: songList.value,
+  folders: [],
+}))
+const {
+  searchQuery,
+  sortMode,
+  sortOrder,
+  batchMode,
+  selectedIds,
+  displaySongs,
+  selectedSongs,
+  allSelected,
+  sortLabels,
+  toggleSelection,
+  selectAll,
+  clearSelection,
+  exitBatchMode,
+} = usePlaylistView(viewPlaylist)
+
+function handleSelectAll() {
+  if (allSelected.value) clearSelection()
+  else selectAll()
+}
+
+// 批量操作
+function handleBatchDownload() {
+  const songs = selectedSongs.value.filter(s => s.online)
+  if (songs.length) emit('batch-download', songs)
+  exitBatchMode()
+}
+function handleBatchAdd(playlistId: string) {
+  emit('add-to-playlist', playlistId, toRaw(selectedSongs.value))
+  exitBatchMode()
+}
+function handleBatchReplace(playlistId: string) {
+  emit('replace-to-playlist', playlistId, toRaw(selectedSongs.value))
+  exitBatchMode()
+}
 
 // 「收藏歌单」：选择本地歌单后整张收藏
 const collectMenu = ref<Song[] | null>(null)
@@ -178,17 +224,41 @@ onUnmounted(stopAuto)
         </div>
       </div>
 
+      <PlaylistViewToolbar
+        v-model:search-query="searchQuery"
+        v-model:sort-mode="sortMode"
+        v-model:sort-order="sortOrder"
+        :batch-mode="batchMode"
+        :sort-labels="sortLabels"
+        @toggle-batch="batchMode = !batchMode"
+      />
+
       <PlaylistViewList
-        :songs="songList"
+        :songs="displaySongs"
         :playlists="playlists"
         :current-song="currentSong"
         :playlist-id="`online-${source}-${id}`"
-        :sort-mode="'custom'"
-        :batch-mode="false"
-        :selected-ids="emptySet"
+        :sort-mode="sortMode"
+        :batch-mode="batchMode"
+        :selected-ids="selectedIds"
+        :search-query="searchQuery"
         @play="onPlaySong"
         @add-to-queue="(s) => emit('queue', s)"
         @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
+        @toggle="toggleSelection"
+      />
+
+      <PlaylistBatchBar
+        v-if="batchMode"
+        :selected-songs="selectedSongs"
+        :playlists="playlists"
+        :current-playlist-id="`online-${source}-${id}`"
+        @download="handleBatchDownload"
+        @add-to-playlist="handleBatchAdd"
+        @replace-to-playlist="handleBatchReplace"
+        @select-all="handleSelectAll"
+        @clear-selection="clearSelection"
+        @close="exitBatchMode"
       />
 
       <!-- 收藏整张歌单：选择本地歌单 -->
