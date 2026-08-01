@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
-import WinUISlider from '../settings/WinUISlider.vue'
 
 const props = defineProps<{
   playbackRate: number
@@ -18,7 +17,8 @@ const presets = [0.5, 1, 1.25, 1.5, 2]
 
 const displayRate = computed(() => `${props.playbackRate.toFixed(2)}x`)
 
-function handleInput(value: number) {
+function handleInput(e: Event) {
+  const value = parseFloat((e.target as HTMLInputElement).value)
   emit('set-playback-rate', value)
 }
 
@@ -59,14 +59,14 @@ function stopDrag() {
     <div v-if="showPopup || isDragging" class="rate-popup">
       <div class="rate-panel">
         <div class="rate-value">{{ displayRate }}</div>
-        <WinUISlider
+        <input
+          type="range"
           class="rate-slider"
-          :model-value="playbackRate"
-          :min="0.25"
-          :max="16"
-          :step="0.05"
-          aria-label="播放倍速"
-          @update:model-value="handleInput"
+          min="0.25"
+          max="16"
+          step="0.05"
+          :value="playbackRate"
+          @input="handleInput"
           @pointerdown="startDrag"
           @pointerup="stopDrag"
         />

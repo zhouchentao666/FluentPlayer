@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue'
 import { ReadCoverArt } from '@bridge/app'
-import WinUICheckBox from './settings/WinUICheckBox.vue'
 import type { Song } from '../types'
 import {
   displayTitle,
@@ -59,13 +58,17 @@ function coverStyle(song: Song) {
       @click="!props.batchMode && emit('addToQueue', song)"
       @dblclick="emit('play', song)"
     >
-      <WinUICheckBox
+      <label
         v-if="props.batchMode"
         class="card-check"
-        :model-value="props.selectedIds.has(song.id)"
         @click.stop
-        @update:model-value="emit('toggle', song.id)"
-      />
+      >
+        <input
+          type="checkbox"
+          :checked="props.selectedIds.has(song.id)"
+          @change="emit('toggle', song.id)"
+        />
+      </label>
       <button
         class="card-remove"
         title="移除"
@@ -159,6 +162,12 @@ function coverStyle(song: Song) {
   z-index: 1;
 }
 
+.card-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--fluent-accent);
+  cursor: pointer;
+}
 
 .card-remove {
   position: absolute;

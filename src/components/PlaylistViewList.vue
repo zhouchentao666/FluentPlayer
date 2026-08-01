@@ -3,7 +3,6 @@ import { computed, ref } from 'vue'
 import type { Playlist, Song } from '../types'
 import type { SortMode } from '../composables/usePlaylistView'
 import { OpenInExplorer, OpenSongEditor } from '@bridge/app'
-import WinUICheckBox from './settings/WinUICheckBox.vue'
 import { downloadSong } from '@online/lib/download'
 import {
   displayTitle,
@@ -202,13 +201,17 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
       @dragleave="onDragLeave"
       @drop="onDrop($event, index)"
     >
-      <WinUICheckBox
+      <label
         v-if="props.batchMode"
         class="col-check"
-        :model-value="props.selectedIds.has(song.id)"
         @click.stop
-        @update:model-value="emit('toggle', song.id)"
-      />
+      >
+        <input
+          type="checkbox"
+          :checked="props.selectedIds.has(song.id)"
+          @change="emit('toggle', song.id)"
+        />
+      </label>
       <span class="col-index">
         <span class="index-number">{{ index + 1 }}</span>
         <span
@@ -405,6 +408,12 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
   justify-content: center;
 }
 
+.col-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--fluent-accent);
+  cursor: pointer;
+}
 
 .col-index {
   position: relative;
