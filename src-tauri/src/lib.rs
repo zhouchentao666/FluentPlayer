@@ -29,6 +29,7 @@ pub fn run() {
             // 离线文件下载
             commands::download::save_file,
             commands::download::download_file,
+            commands::download::download_song,
             // 本地媒体
             commands::media::scan_music_folder,
             commands::media::read_metadata,

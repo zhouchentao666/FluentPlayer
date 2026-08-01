@@ -1,0 +1,22 @@
+src/App.vue(102,19): error TS2304: Cannot find name 'setDownloadQuality'.
+src/App.vue(290,61): error TS2694: Namespace '"D:/zhouchentao/biancheng/Web/tideaudio/tideaudio/src/online/player"' has no exported member 'Quality'.
+src/App.vue(521,25): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/App.vue(558,62): error TS2339: Property 'qualitys' does not exist on type '{ id: string; name: string; singer: string; source: Source; interval: string; albumName: string; meta: { songId: string; albumId?: string | undefined; picUrl?: string | null | undefined; ... 7 more ...; embeddedLyric?: string | undefined; }; }'.
+src/components/DownloadDialog.vue(32,44): error TS2339: Property 'qualitys' does not exist on type 'MusicInfo'.
+src/components/DownloadDialog.vue(35,86): error TS2339: Property 'qualitys' does not exist on type 'MusicInfo'.
+src/components/DownloadDialog.vue(44,7): error TS2367: This comparison appears to be unintentional because the types 'Quality' and '"lossless"' have no overlap.
+src/components/DownloadDialog.vue(44,33): error TS2367: This comparison appears to be unintentional because the types 'Quality' and '"hires"' have no overlap.
+src/components/DownloadDialog.vue(45,7): error TS2367: This comparison appears to be unintentional because the types 'Quality' and '"high"' have no overlap.
+src/components/DownloadDialog.vue(86,57): error TS2554: Expected 1 arguments, but got 2.
+src/components/DownloadDialog.vue(86,62): error TS2339: Property 'songId' does not exist on type 'MusicInfo'.
+src/components/DownloadDialog.vue(87,60): error TS18047: 'lr' is possibly 'null'.
+src/components/DownloadDialog.vue(87,63): error TS2339: Property 'yrcLrc' does not exist on type 'LyricInfo'.
+src/components/DownloadDialog.vue(87,73): error TS18047: 'lr' is possibly 'null'.
+src/components/DownloadDialog.vue(88,66): error TS18047: 'lr' is possibly 'null'.
+src/components/DownloadDialog.vue(88,69): error TS2339: Property 'ttml' does not exist on type 'LyricInfo'.
+src/components/DownloadDialog.vue(88,77): error TS18047: 'lr' is possibly 'null'.
+src/components/DownloadDialog.vue(89,28): error TS18047: 'lr' is possibly 'null'.
+src/components/DownloadDialog.vue(99,13): error TS2339: Property 'headers' does not exist on type '{ url: string; quality: Quality; }'.
+src/components/DownloadDialog.vue(108,27): error TS2339: Property 'picUrl' does not exist on type 'MusicInfo'.
+src/components/online/OnlineDetail.vue(193,21): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/composables/useDownloadConfig.ts(29,3): error TS2322: Type '"standard"' is not assignable to type 'Quality'.
