@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, inject, computed, type Ref, nextTick } from 'vue'
+import { ref, onMounted, inject, computed, type Ref } from 'vue'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
@@ -13,7 +13,6 @@ import OnlineSearch from './OnlineSearch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineCharts from './OnlineCharts.vue'
-import OnlineDetail from './OnlineDetail.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
 import type { OnlineTab } from '../../composables/useConfig'
 
@@ -22,14 +21,13 @@ type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 
 const props = defineProps<{
   playlists: LocalPlaylist[]
   currentSong: Song | null
-  openRequest: OpenTarget | null
   tab: OnlineTab
 }>()
 const emit = defineEmits<{
   (e: 'play-songs', songs: Song[], index: number): void
   (e: 'add-to-queue', song: Song): void
   (e: 'add-to-playlist', playlistId: string, songs: Song[]): void
-  (e: 'opened'): void
+  (e: 'open-detail', target: OpenTarget): void
   (e: 'update:tab', tab: OnlineTab): void
 }>()
 
@@ -46,9 +44,6 @@ const tabTitle = computed(() => TABS.find((t) => t.id === props.tab)?.label ?? '
 /** 音源管理改为顶栏按钮弹层，让主标签维持「歌单 / 专辑 / 排行榜 / 搜索」四项。 */
 const sourcesModal = ref(false)
 
-const detail = ref<OpenTarget | null>(null)
-/** 详情完全展开后隐藏底层界面，避免两层内容叠加（也省掉一次无谓的合成）。 */
-const detailShown = ref(false)
 const addMenu = ref<{ musics: MusicInfo[]; title: string } | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -82,22 +77,12 @@ function onDownloadAll(musics: MusicInfo[]) {
   downloadMany(musics)
 }
 function onOpen(item: Playlist | Album, kind: 'playlist' | 'album') {
-  detail.value = { source: item.source as 'wy' | 'kw' | 'kg' | 'tx' | 'mg', id: item.id, kind }
-  detailShown.value = true
+  emit('open-detail', {
+    source: item.source as 'wy' | 'kw' | 'kg' | 'tx' | 'mg',
+    id: item.id,
+    kind,
+  })
 }
-
-// 由侧栏固定项触发的「实时打开」
-watch(
-  () => props.openRequest,
-  (r) => {
-    if (r) {
-      detail.value = { ...r }
-      detailShown.value = true
-      emit('opened')
-    }
-  },
-  { immediate: true },
-)
 
 // ---- 固定到侧栏 ----
 const pinnedList = () => settings?.value.pinnedOnlinePlaylists ?? []
@@ -136,9 +121,9 @@ async function openExternalLink() {
   linkLoading.value = true
   try {
     const id = await parsePlaylistLink(linkSource.value, link)
-    detail.value = { source: linkSource.value, id, kind: linkKind.value }
     linkModal.value = false
     linkText.value = ''
+    emit('open-detail', { source: linkSource.value, id, kind: linkKind.value })
   } catch (err) {
     toast((err as Error).message || '链接解析失败', 'error')
   } finally {
@@ -202,7 +187,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
       </div>
     </div>
 
-    <div v-show="!detailShown" class="body">
+    <div class="body">
       <Transition name="view-flip" mode="out-in">
         <OnlineSearch
           v-if="tab === 'search'"
@@ -277,35 +262,6 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
         <button class="cancel" @click="sourcesModal = false">关闭</button>
       </div>
     </div>
-
-    <!-- 详情：从下到上的「新界面」动画 -->
-    <Transition
-      name="slide-up"
-      @after-enter="detailShown = true"
-      @before-leave="detailShown = false"
-    >
-      <div v-if="detail" class="overlay">
-        <button class="back" @click="detail = null">
-          <svg viewBox="0 0 16 16" width="16" height="16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          返回
-        </button>
-        <OnlineDetail
-          :key="detail.source + '-' + detail.id + '-' + detail.kind"
-          :source="detail.source"
-          :id="detail.id"
-          :kind="detail.kind"
-          :current-song="currentSong"
-          :pinned="detail ? isPinned(detail) : false"
-          @play="onPlay"
-          @queue="onQueue"
-          @add-playlist="onAddPlaylist"
-          @download="onDownload"
-          @add-all="onAddAll"
-          @download-all="onDownloadAll"
-          @toggle-pin="onTogglePin"
-        />
-      </div>
-    </Transition>
 
     <!-- 打开外部歌单 / 专辑链接 -->
     <div v-if="linkModal" class="modal-mask" @click.self="linkModal = false">
@@ -407,30 +363,8 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   overflow: hidden;
 }
 /*
- * 详情页是「一个新界面」而不是浮层：
- * 不再叠加毛玻璃（backdrop-filter 会把窗口原生亚克力糊成第二层），
- * 底层界面在动画结束后直接隐藏，只保留窗口底部播放条的亚克力质感。
+ * 在线子标签切换：与主界面 view-flip 动画保持一致
  */
-.overlay {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  will-change: transform;
-}
-/* 从下到上的「新界面」动画 */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(100%);
-}
-/* 在线子标签切换：与主界面 view-flip 动画保持一致 */
 .view-flip-enter-active {
   position: absolute;
   inset: 0;
@@ -446,23 +380,6 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
 }
 .view-flip-leave-to {
   opacity: 0;
-}
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  margin: 14px 22px 0;
-  border: none;
-  background: var(--fluent-bg-card);
-  color: var(--fluent-text);
-  padding: 8px 14px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 13px;
-}
-.back:hover {
-  background: var(--fluent-bg-hover);
 }
 
 /* 音源管理 */

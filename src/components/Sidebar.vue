@@ -125,6 +125,20 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
           @delete="onDelete"
           @drop-songs="payload => onDropSongs(playlist.id, payload)"
         />
+        <li
+          v-for="item in (pinnedOnline || [])"
+          :key="item.source + '-' + item.id + '-' + item.kind"
+          class="pinned-item"
+          @click="emit('open-online-item', item)"
+        >
+          <img v-if="item.img" :src="item.img" class="pinned-cover" alt="" />
+          <div v-else class="pinned-cover placeholder"></div>
+          <div class="pinned-meta">
+            <div class="pinned-name">{{ item.name || '未知' }}</div>
+            <div class="pinned-badge">{{ sourceLabel(item.source) }} · {{ item.kind === 'album' ? '专辑' : '歌单' }}</div>
+          </div>
+          <button class="pinned-unpin" title="取消固定" @click.stop="emit('unpin-online', item.id)">×</button>
+        </li>
       </ul>
       <PlaylistCreateInput
         v-if="isCreating"
@@ -135,26 +149,6 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
         <span class="icon">+</span>
         <span>新建歌单</span>
       </button>
-
-      <div v-if="pinnedOnline && pinnedOnline.length" class="pinned-block">
-        <div class="section-title">在线歌单</div>
-        <ul class="pinned-list">
-          <li
-            v-for="item in pinnedOnline"
-            :key="item.source + '-' + item.id + '-' + item.kind"
-            class="pinned-item"
-            @click="emit('open-online-item', item)"
-          >
-            <img v-if="item.img" :src="item.img" class="pinned-cover" alt="" />
-            <div v-else class="pinned-cover placeholder"></div>
-            <div class="pinned-meta">
-              <div class="pinned-name">{{ item.name || '未知' }}</div>
-              <div class="pinned-badge">{{ sourceLabel(item.source) }} · {{ item.kind === 'album' ? '专辑' : '歌单' }}</div>
-            </div>
-            <button class="pinned-unpin" title="取消固定" @click.stop="emit('unpin-online', item.id)">×</button>
-          </li>
-        </ul>
-      </div>
     </div>
     <div class="bottom">
       <button
@@ -266,20 +260,7 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
   height: 16px;
 }
 
-/* 固定到侧栏的在线歌单 / 专辑 */
-.pinned-block {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--fluent-border);
-}
-.pinned-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+/* 固定到侧栏的在线歌单 / 专辑（合并在歌单分组内） */
 .pinned-item {
   display: flex;
   align-items: center;

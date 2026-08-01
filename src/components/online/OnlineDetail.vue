@@ -1,28 +1,35 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+
+/** 在线歌单不支持批量选择，传入空集合即可。 */
+const emptySet = new Set<string>()
 import type { MusicInfo } from '@online/types/music'
-import type { Song } from '../../types'
+import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { PinnedOnlineItem } from '../../composables/useConfig'
 import { getPlaylistDetail } from '@online/lib/playlists'
 import { getAlbumDetail } from '@online/lib/albums'
-import OnlineSongRow from './OnlineSongRow.vue'
+import { musicInfoToSong } from '@online/player'
+import PlaylistViewList from '../PlaylistViewList.vue'
+import { toast } from '../../composables/useToast'
 
 const props = defineProps<{
   source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'
   id: string
   kind: 'playlist' | 'album'
   currentSong: Song | null
+  playlists: LocalPlaylist[]
   pinned?: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'play', musics: MusicInfo[], index: number): void
-  (e: 'queue', m: MusicInfo): void
-  (e: 'add-playlist', m: MusicInfo): void
-  (e: 'download', m: MusicInfo): void
-  (e: 'add-all', musics: MusicInfo[]): void
-  (e: 'download-all', musics: MusicInfo[]): void
+  (e: 'play', songs: Song[], index: number): void
+  (e: 'queue', song: Song): void
+  (e: 'add-playlist', playlistId: string, song: Song): void
+  (e: 'download', song: Song): void
+  (e: 'add-all', playlistId: string, songs: Song[]): void
+  (e: 'download-all', songs: Song[]): void
   (e: 'toggle-pin', item: PinnedOnlineItem): void
+  (e: 'back'): void
 }>()
 
 interface DetailInfo {
@@ -37,8 +44,22 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const coverFailed = ref(false)
 
-const currentId = computed(() => props.currentSong?.online?.id ?? '')
+const currentId = computed(() => props.currentSong?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
+/** 与本地歌单共用统一的歌曲列表组件 */
+const songList = computed(() => list.value.map(musicInfoToSong))
+
+// 「收藏歌单」：选择本地歌单后整张收藏
+const collectMenu = ref<Song[] | null>(null)
+function openCollectMenu() {
+  collectMenu.value = songList.value
+}
+function confirmCollect(plId: string) {
+  if (!collectMenu.value) return
+  emit('add-all', plId, collectMenu.value)
+  collectMenu.value = null
+  toast('已添加到歌单', 'success')
+}
 
 async function load(p: number, append = false) {
   if (p === 1) loading.value = true
@@ -62,9 +83,9 @@ async function load(p: number, append = false) {
   }
 }
 
-function onPlay(m: MusicInfo) {
-  const idx = list.value.findIndex((x) => x.id === m.id)
-  emit('play', list.value, idx >= 0 ? idx : 0)
+function onPlaySong(song: Song) {
+  const idx = songList.value.findIndex((x) => x.id === song.id)
+  emit('play', songList.value, idx >= 0 ? idx : 0)
 }
 
 function onTogglePin() {
@@ -84,6 +105,10 @@ onMounted(() => load(1))
   <div class="detail">
     <div v-if="loading" class="state">加载中…</div>
     <template v-else-if="info">
+      <button class="back" @click="emit('back')">
+        <svg viewBox="0 0 16 16" width="16" height="16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        返回
+      </button>
       <div class="header">
         <div class="cover-wrap">
           <img v-if="cover" :src="cover" class="cover" alt="" @error="coverFailed = true" />
@@ -95,12 +120,12 @@ onMounted(() => load(1))
           <div v-if="info.author" class="author">{{ info.author }}</div>
           <div class="count">{{ list.length }} 首</div>
           <div class="buttons">
-            <button class="play-all" @click="emit('play', list, 0)">
+            <button class="play-all" @click="emit('play', songList, 0)">
               <svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
               播放全部
             </button>
-            <button class="ghost" @click="emit('add-all', list)">收藏歌单</button>
-            <button class="ghost" @click="emit('download-all', list)">下载全部</button>
+            <button class="ghost" @click="openCollectMenu">收藏歌单</button>
+            <button class="ghost" @click="emit('download-all', songList)">下载全部</button>
             <button class="ghost pin" :class="{ active: pinned }" @click="onTogglePin">
               <svg viewBox="0 0 16 16" width="14" height="14">
                 <path
@@ -117,23 +142,42 @@ onMounted(() => load(1))
         </div>
       </div>
 
-      <div class="song-list">
-        <OnlineSongRow
-          v-for="(m, i) in list"
-          :key="m.id"
-          :music="m"
-          :index="i"
-          :current="m.id === currentId"
-          @play="onPlay"
-          @add-queue="emit('queue', $event)"
-          @add-playlist="emit('add-playlist', $event)"
-          @download="emit('download', $event)"
-        />
-      </div>
+      <PlaylistViewList
+        :songs="songList"
+        :playlists="playlists"
+        :current-song="currentSong"
+        :playlist-id="`online-${source}-${id}`"
+        :sort-mode="'custom'"
+        :batch-mode="false"
+        :selected-ids="emptySet"
+        @play="onPlaySong"
+        @add-to-queue="(s) => emit('queue', s)"
+        @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
+      />
 
       <button class="load-more" :disabled="loadingMore" @click="load(page + 1, true)">
         {{ loadingMore ? '加载中…' : '加载更多' }}
       </button>
+
+      <!-- 收藏整张歌单：选择本地歌单 -->
+      <div v-if="collectMenu" class="modal-mask" @click.self="collectMenu = null">
+        <div class="add-menu">
+          <div class="add-menu-title">收藏到歌单</div>
+          <div class="add-menu-list">
+            <button
+              v-for="pl in playlists"
+              :key="pl.id"
+              class="add-menu-item"
+              @click="confirmCollect(pl.id)"
+            >
+              {{ pl.name }}
+              <span class="cnt">{{ pl.songs.length }}</span>
+            </button>
+            <div v-if="playlists.length === 0" class="state small">暂无歌单</div>
+          </div>
+          <button class="cancel" @click="collectMenu = null">取消</button>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -151,6 +195,92 @@ onMounted(() => load(1))
   color: var(--fluent-text-secondary);
   text-align: center;
   padding: 40px 0;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  border: none;
+  background: var(--fluent-bg-card);
+  color: var(--fluent-text);
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.back:hover {
+  background: var(--fluent-bg-hover);
+}
+/* 收藏歌单弹层 */
+.modal-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.add-menu {
+  width: 360px;
+  max-width: 90%;
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--fluent-border);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.add-menu-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fluent-text);
+  margin-bottom: 12px;
+}
+.add-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.add-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fluent-bg-card);
+  color: var(--fluent-text);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.add-menu-item:hover {
+  background: var(--fluent-bg-hover);
+}
+.cnt {
+  font-size: 12px;
+  color: var(--fluent-text-secondary);
+}
+.cancel {
+  width: 100%;
+  margin-top: 14px;
+  height: 36px;
+  border: 1px solid var(--fluent-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  cursor: pointer;
+}
+.state.small {
+  padding: 12px 0;
+  color: var(--fluent-text-secondary);
+  text-align: center;
+  font-size: 14px;
 }
 .header {
   display: flex;
@@ -235,11 +365,6 @@ onMounted(() => load(1))
 }
 .ghost:hover {
   background: var(--fluent-bg-hover);
-}
-.song-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 .load-more {
   align-self: center;

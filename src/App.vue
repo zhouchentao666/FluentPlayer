@@ -16,12 +16,14 @@ import Sidebar from './components/Sidebar.vue'
 import Settings from './components/Settings.vue'
 import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
+import OnlineDetail from './components/online/OnlineDetail.vue'
+import { downloadSong, downloadMany } from './online/lib/download'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
-import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
+import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, type PinnedOnlineItem, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
 import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
@@ -34,7 +36,7 @@ import { localMetadata, type LocalSongMetadata } from './composables/useLocalMet
 import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
 
-const view = ref<'main' | 'settings' | 'online'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail'>('main')
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
@@ -263,13 +265,12 @@ function onSelectPlaylist(id: string) {
   view.value = 'main'
 }
 
-// 由侧栏固定项实时打开在线歌单 / 专辑
+// 由侧栏固定项打开在线歌单 / 专辑（作为独立视图，与本地歌单一致的切换动画）
 type OpenTarget = { source: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; id: string; kind: 'playlist' | 'album' }
-const pendingOnlineOpen = ref<OpenTarget | null>(null)
+const onlineDetail = ref<OpenTarget | null>(null)
 function openOnlineItem(item: OpenTarget) {
-  pendingOnlineOpen.value = { ...item }
-  onlineTab.value = item.kind === 'album' ? 'albums' : 'playlists'
-  view.value = 'online'
+  onlineDetail.value = { ...item }
+  view.value = 'online-detail'
 }
 function openOnline(tab: OnlineTab) {
   onlineTab.value = tab
@@ -277,6 +278,13 @@ function openOnline(tab: OnlineTab) {
 }
 function unpinOnlineItem(id: string) {
   settings.value.pinnedOnlinePlaylists = settings.value.pinnedOnlinePlaylists.filter((p) => p.id !== id)
+}
+function onTogglePinOnline(item: PinnedOnlineItem) {
+  const list = settings.value.pinnedOnlinePlaylists
+  const exists = list.some((p) => p.id === item.id)
+  settings.value.pinnedOnlinePlaylists = exists
+    ? list.filter((p) => p.id !== item.id)
+    : [...list, { ...item }]
 }
 
 watch(selectedId, (id) => {
@@ -451,7 +459,7 @@ onUnmounted(() => {
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
-        :active-view="view"
+        :active-view="view === 'online-detail' ? 'online' : view"
         :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
@@ -494,13 +502,30 @@ onUnmounted(() => {
             :key="'online'"
             :playlists="playlists"
             :current-song="audio.currentSong.value"
-            :open-request="pendingOnlineOpen"
             :tab="onlineTab"
             @update:tab="onlineTab = $event"
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
             @add-to-playlist="addSongs"
-            @opened="pendingOnlineOpen = null"
+            @open-detail="openOnlineItem"
+          />
+          <OnlineDetail
+            v-else-if="view === 'online-detail' && onlineDetail"
+            :key="'online-detail-' + onlineDetail.source + '-' + onlineDetail.id + '-' + onlineDetail.kind"
+            :source="onlineDetail.source"
+            :id="onlineDetail.id"
+            :kind="onlineDetail.kind"
+            :current-song="audio.currentSong.value"
+            :playlists="playlists"
+            :pinned="settings.pinnedOnlinePlaylists.some((p) => p.id === (onlineDetail?.id ?? ''))"
+            @play="(songs, index) => audio.playSongs(songs, index)"
+            @queue="audio.addToQueue"
+            @add-playlist="(pid, song) => addSongs(pid, [song])"
+            @download="(song) => song.online && downloadSong(song.online)"
+            @add-all="(pid, songs) => addSongs(pid, songs)"
+            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
+            @toggle-pin="onTogglePinOnline"
+            @back="view = 'online'"
           />
         </Transition>
       </main>
