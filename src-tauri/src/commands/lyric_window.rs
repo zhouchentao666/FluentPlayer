@@ -1,74 +1,105 @@
-use serde::Serialize;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, WindowConfig, WindowEvent};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
-#[derive(Clone, Serialize)]
-struct LyricPayload {
-    title: String,
-    artist: String,
-    album: String,
-    cover: String,
+use super::config::desktop_lyric_value;
+
+const LABEL: &str = "desktop-lyric";
+
+fn num(value: &serde_json::Value, key: &str, fallback: f64) -> f64 {
+    value.get(key).and_then(|v| v.as_f64()).unwrap_or(fallback)
 }
 
+/// 打开 / 隐藏桌面歌词窗口
 #[tauri::command]
-pub fn toggle_desktop_lyric(
-    app: tauri::AppHandle,
-    payload: LyricPayload,
-) -> Result<bool, String> {
-    const LABEL: &str = "desktop-lyric";
-
-    // 如果已存在桌面歌词窗口，则关闭它
-    if let Some(existing) = app.get_webview_window(LABEL) {
-        existing.close().map_err(|e| e.to_string())?;
-        return Ok(false);
+pub async fn toggle_desktop_lyric(app: AppHandle, enabled: bool) -> Result<(), String> {
+    if !enabled {
+        if let Some(win) = app.get_webview_window(LABEL) {
+            let _ = win.hide();
+        }
+        return Ok(());
     }
 
-    // 透明效果通过 WindowConfig 传入，避免调用受 macos-private-api cfg 限制的
-    // WebviewWindowBuilder::transparent 方法（旧版 Tauri / 未启用该 feature 时编译失败）。
-    let config = WindowConfig {
-        label: LABEL.to_string(),
-        url: WebviewUrl::App("/index.html?desktopLyric=1".into()),
-        title: "桌面歌词".to_string(),
-        width: 800.0,
-        height: 180.0,
-        decorations: false,
-        transparent: true,
-        shadow: false,
-        always_on_top: true,
-        resizable: false,
-        visible: false,
-        drag_drop_enabled: false,
-        ..Default::default()
-    };
+    if let Some(win) = app.get_webview_window(LABEL) {
+        let _ = win.show();
+        return Ok(());
+    }
 
-    let window = WebviewWindowBuilder::from_config(&app, &config)
-        .map_err(|e| e.to_string())?
+    let cfg = desktop_lyric_value(&app);
+    let width = num(&cfg, "width", 800.0).max(200.0);
+    let height = num(&cfg, "height", 180.0).max(80.0);
+    let x = num(&cfg, "x", 0.0);
+    let y = num(&cfg, "y", 0.0);
+    let is_lock = cfg
+        .get("isLock")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let mut builder = WebviewWindowBuilder::new(
+        &app,
+        LABEL,
+        WebviewUrl::App("index.html?desktopLyric=1".into()),
+    )
+    .title("桌面歌词")
+    .decorations(false)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(true)
+    .maximizable(false)
+    .minimizable(false)
+    .inner_size(width, height);
+
+    // `transparent` 仅在非 macOS，或 macOS 且启用 `macos-private-api` 特性时才存在。
+    // 桌面歌词必须叠加在桌面之上，因此透明是必需的（见 tauri.conf.json 的 macOSPrivateApi）。
+    #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let win = builder
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("创建桌面歌词窗口失败: {e}"))?;
 
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { .. } = event {
-            // 关闭事件无需额外处理，下次调用会重新创建
-        }
-    });
-
-    // 注入歌词数据
-    let script = format!(
-        "window.__lyricData = {}; window.dispatchEvent(new CustomEvent('lyric-update', {{ detail: {} }}));",
-        serde_json::to_string(&payload).unwrap_or_else(|_| "{}".to_string()),
-        serde_json::to_string(&payload).unwrap_or_else(|_| "{}".to_string())
-    );
-    let _ = window.eval(&script);
-
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().ok();
-
-    Ok(true)
+    if x != 0.0 || y != 0.0 {
+        let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
+        let _ = win.set_size(PhysicalSize::new(width as u32, height as u32));
+    }
+    if is_lock {
+        let _ = win.set_ignore_cursor_events(true);
+    }
+    Ok(())
 }
 
+/// 关闭桌面歌词窗口
 #[tauri::command]
-pub fn close_desktop_lyric(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("desktop-lyric") {
-        window.close().map_err(|e| e.to_string())?;
+pub fn close_desktop_lyric(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(LABEL) {
+        let _ = win.destroy();
+    }
+    Ok(())
+}
+
+/// 设置桌面歌词窗口位置与大小（物理像素）
+#[tauri::command]
+pub fn set_desktop_lyric_bounds(
+    app: AppHandle,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(LABEL) {
+        let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
+        let _ = win.set_size(PhysicalSize::new(width.max(80.0) as u32, height.max(40.0) as u32));
+    }
+    Ok(())
+}
+
+/// 锁定时忽略鼠标事件（点击穿透）
+#[tauri::command]
+pub fn set_desktop_lyric_ignore_mouse_events(app: AppHandle, ignore: bool) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(LABEL) {
+        win.set_ignore_cursor_events(ignore)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }

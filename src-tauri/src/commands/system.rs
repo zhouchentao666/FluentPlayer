@@ -1,6 +1,4 @@
-use tauri::{
-    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowConfig,
-};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_autostart::ManagerExt;
 
 /// 在资源管理器中定位文件
@@ -85,24 +83,21 @@ pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String
         let _ = win.destroy();
     }
     let url = format!("index.html?editor=1&path={}", urlencoding::encode(&path));
-    // 透明效果通过 WindowConfig 传入，避免调用受 macos-private-api cfg 限制的
-    // WebviewWindowBuilder::transparent 方法（旧版 Tauri / 未启用该 feature 时编译失败）。
-    let config = WindowConfig {
-        label: LABEL.to_string(),
-        url: WebviewUrl::App(url.into()),
-        title: "歌曲信息".to_string(),
-        width: 640.0,
-        height: 760.0,
-        min_width: Some(520.0),
-        min_height: Some(600.0),
-        decorations: false,
-        transparent: true,
-        center: true,
-        shadow: true,
-        ..Default::default()
-    };
-    WebviewWindowBuilder::from_config(&app, &config)
-        .map_err(|e| format!("创建编辑器窗口失败: {e}"))?
+    let mut builder = WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App(url.into()))
+        .title("歌曲信息")
+        .inner_size(640.0, 760.0)
+        .min_inner_size(520.0, 600.0)
+        .decorations(false)
+        .center();
+
+    // `transparent` 仅在非 macOS，或 macOS 且启用 `macos-private-api` 特性时才存在。
+    // 无边框窗口依赖透明来渲染圆角，缺失时窗口仍可正常工作（仅无圆角）。
+    #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
+    {
+        builder = builder.transparent(true);
+    }
+
+    builder
         .build()
         .map_err(|e| format!("创建编辑器窗口失败: {e}"))?;
     Ok(())
