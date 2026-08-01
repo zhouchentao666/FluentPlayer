@@ -13,6 +13,8 @@ import OnlineSearch from './OnlineSearch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineCharts from './OnlineCharts.vue'
+import ComboBox, { type ComboBoxOption } from '../settings/ComboBox.vue'
+import ToggleSwitch from '../settings/ToggleSwitch.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
 import type { OnlineTab } from '../../composables/useConfig'
 
@@ -115,6 +117,12 @@ const linkSources: { id: 'wy' | 'kw' | 'kg' | 'tx' | 'mg'; label: string }[] = [
   { id: 'tx', label: 'QQ' },
   { id: 'mg', label: '咪咕' },
 ]
+const linkSourceOptions = computed<ComboBoxOption[]>(() =>
+  linkSources.map(s => ({ value: s.id, label: s.label }))
+)
+function setLinkSource(value: string) {
+  linkSource.value = value as typeof linkSource.value
+}
 async function openExternalLink() {
   const link = linkText.value.trim()
   if (!link) return
@@ -250,10 +258,11 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
               </div>
             </div>
             <div class="src-actions">
-              <label class="switch">
-                <input type="checkbox" :checked="s.enabled" @change="toggleEnabled(s.id)" />
-                <span class="slider" />
-              </label>
+              <ToggleSwitch
+                :model-value="s.enabled"
+                :aria-label="`启用音源 ${s.name}`"
+                @update:model-value="toggleEnabled(s.id)"
+              />
               <button class="del" title="删除" @click="removeScript(s.id)">删除</button>
             </div>
           </div>
@@ -269,9 +278,14 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
         <div class="link-title">打开外部歌单 / 专辑</div>
         <div class="link-hint">粘贴分享链接（如网易云歌单 / 专辑链接），选择对应平台后打开。</div>
         <div class="link-row">
-          <select v-model="linkSource" class="link-select">
-            <option v-for="s in linkSources" :key="s.id" :value="s.id">{{ s.label }}</option>
-          </select>
+          <ComboBox
+            class="link-select"
+            width="110px"
+            aria-label="选择平台"
+            :options="linkSourceOptions"
+            :model-value="linkSource"
+            @update:model-value="setLinkSource"
+          />
           <div class="link-kind">
             <button :class="{ active: linkKind === 'playlist' }" @click="linkKind = 'playlist'">歌单</button>
             <button :class="{ active: linkKind === 'album' }" @click="linkKind = 'album'">专辑</button>
@@ -491,42 +505,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   gap: 12px;
   flex-shrink: 0;
 }
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 42px;
-  height: 24px;
-}
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.slider {
-  position: absolute;
-  inset: 0;
-  background: var(--fluent-bg-active);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.18s ease;
-}
-.slider::before {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  left: 3px;
-  top: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.18s ease;
-}
-.switch input:checked + .slider {
-  background: var(--fluent-accent);
-}
-.switch input:checked + .slider::before {
-  transform: translateX(18px);
-}
+
 .del {
   border: 1px solid var(--fluent-border);
   background: transparent;
@@ -642,15 +621,11 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   gap: 10px;
 }
 .link-select {
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid var(--fluent-input-border);
-  background: var(--fluent-input-bg);
-  color: var(--fluent-text);
-  padding: 0 10px;
-  outline: none;
-  font-size: 13px;
   flex-shrink: 0;
+}
+.link-select :deep(.win-combo) {
+  min-height: 38px;
+  border-radius: 10px;
 }
 .link-kind {
   display: inline-flex;
@@ -686,9 +661,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   font-size: 13px;
 }
 .link-input:focus,
-.link-select:focus {
-  border-color: var(--fluent-accent);
-}
+
 .link-actions {
   display: flex;
   justify-content: flex-end;

@@ -15,6 +15,7 @@ import SettingRow from './settings/SettingRow.vue'
 import SegmentedControl from './settings/SegmentedControl.vue'
 import ColorPicker from './settings/ColorPicker.vue'
 import ToggleSwitch from './settings/ToggleSwitch.vue'
+import ComboBox, { type ComboBoxOption } from './settings/ComboBox.vue'
 import SettingSlider from './settings/SettingSlider.vue'
 import WindowEffectSettings from './settings/WindowEffectSettings.vue'
 import HotkeyInput from './settings/HotkeyInput.vue'
@@ -87,6 +88,15 @@ const fontOptions = computed(() => {
   if (cur && !list.includes(cur)) list.unshift(cur)
   return list
 })
+
+const qualityOptions = computed<ComboBoxOption[]>(() =>
+  AUDIO_QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))
+)
+
+const fontComboOptions = computed<ComboBoxOption[]>(() => [
+  { value: '', label: '跟随系统' },
+  ...fontOptions.value.map(f => ({ value: f, label: f })),
+])
 </script>
 
 <template>
@@ -130,22 +140,22 @@ const fontOptions = computed(() => {
 
       <SettingCard title="在线音质">
         <SettingRow label="播放音质" description="在线播放优先请求的音质，获取失败时自动向下降级">
-          <select
-            class="fluent-select"
-            :value="settings.playQuality"
-            @change="e => update({ playQuality: (e.target as HTMLSelectElement).value as AudioQuality })"
-          >
-            <option v-for="q in AUDIO_QUALITY_OPTIONS" :key="q.value" :value="q.value">{{ q.label }}</option>
-          </select>
+          <ComboBox
+            width="160px"
+            aria-label="播放音质"
+            :options="qualityOptions"
+            :model-value="settings.playQuality"
+            @update:model-value="value => update({ playQuality: value as AudioQuality })"
+          />
         </SettingRow>
         <SettingRow label="下载音质" description="下载在线歌曲时优先请求的音质，获取失败时自动向下降级">
-          <select
-            class="fluent-select"
-            :value="settings.downloadQuality"
-            @change="e => update({ downloadQuality: (e.target as HTMLSelectElement).value as AudioQuality })"
-          >
-            <option v-for="q in AUDIO_QUALITY_OPTIONS" :key="q.value" :value="q.value">{{ q.label }}</option>
-          </select>
+          <ComboBox
+            width="160px"
+            aria-label="下载音质"
+            :options="qualityOptions"
+            :model-value="settings.downloadQuality"
+            @update:model-value="value => update({ downloadQuality: value as AudioQuality })"
+          />
         </SettingRow>
       </SettingCard>
 
@@ -187,14 +197,13 @@ const fontOptions = computed(() => {
           />
         </SettingRow>
         <SettingRow label="歌词字体" description="全屏播放器歌词使用的字体（下拉框列出系统全部字体）">
-          <select
-            class="fluent-select"
-            :value="settings.lyricFontFamily"
-            @change="e => update({ lyricFontFamily: (e.target as HTMLSelectElement).value })"
-          >
-            <option value="">跟随系统</option>
-            <option v-for="f in fontOptions" :key="f" :value="f">{{ f }}</option>
-          </select>
+          <ComboBox
+            width="220px"
+            aria-label="歌词字体"
+            :options="fontComboOptions"
+            :model-value="settings.lyricFontFamily"
+            @update:model-value="value => update({ lyricFontFamily: value })"
+          />
         </SettingRow>
         <SettingRow label="歌词对齐位置" description="歌词在播放器中的垂直位置（0=顶部，1=底部）">
           <SettingSlider
@@ -335,16 +344,6 @@ const fontOptions = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-.fluent-select {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--fluent-border);
-  background: var(--fluent-bg-hover);
-  color: var(--fluent-text);
-  font-size: 13px;
-  outline: none;
-  cursor: pointer;
 }
 .setting-value {
   font-size: 13px;

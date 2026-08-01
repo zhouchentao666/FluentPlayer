@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
 import type { Playlist, Song } from '../types'
+import ComboBox, { type ComboBoxOption } from './settings/ComboBox.vue'
 
 const props = defineProps<{
   selectedSongs: Song[]
@@ -24,6 +25,10 @@ const targetPlaylists = computed(() =>
 )
 
 const hasTarget = computed(() => targetPlaylists.value.some(p => p.id === targetId.value))
+
+const targetOptions = computed<ComboBoxOption[]>(() =>
+  targetPlaylists.value.map(p => ({ value: p.id, label: p.name }))
+)
 
 function handleAdd() {
   if (!hasTarget.value) return
@@ -71,12 +76,14 @@ function handleReplace() {
 
       <div class="divider"></div>
 
-      <select v-model="targetId" class="batch-select" title="选择目标歌单">
-        <option value="" disabled>目标歌单</option>
-        <option v-for="playlist in targetPlaylists" :key="playlist.id" :value="playlist.id">
-          {{ playlist.name }}
-        </option>
-      </select>
+      <ComboBox
+        v-model="targetId"
+        class="batch-select"
+        width="140px"
+        placeholder="目标歌单"
+        aria-label="选择目标歌单"
+        :options="targetOptions"
+      />
 
       <div class="action-wrap" data-tip="添加到歌单">
         <button class="icon-btn" :disabled="!hasTarget" @click="handleAdd">
@@ -234,15 +241,6 @@ function handleReplace() {
 }
 
 .batch-select {
-  padding: 6px 22px 6px 8px;
-  border: 1px solid var(--fluent-border);
-  border-radius: 8px;
-  background: var(--fluent-bg-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center;
-  color: var(--fluent-text);
-  font-size: 12px;
-  outline: none;
-  cursor: pointer;
-  max-width: 120px;
-  appearance: none;
+  flex: none;
 }
 </style>

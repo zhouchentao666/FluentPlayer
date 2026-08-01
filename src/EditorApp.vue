@@ -5,6 +5,7 @@ import { LoadConfig, SaveConfig, ReadMetadata, ReadLyrics, OpenImageFile, ReadIm
 import type { AppConfig } from '@bridge/models'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import type { Song, SongMetadata } from './types'
+import ComboBox, { type ComboBoxOption } from './components/settings/ComboBox.vue'
 
 const song = ref<Song | null>(null)
 const loading = ref(true)
@@ -48,6 +49,14 @@ const currentFormatDesc = computed(() => {
   const format = lyricsFormats.find(f => f.value === lyricsFormat.value)
   return format?.desc || ''
 })
+
+const lyricsFormatOptions = computed<ComboBoxOption[]>(() =>
+  lyricsFormats.map(f => ({ value: f.value, label: f.label }))
+)
+
+function setLyricsFormat(value: string) {
+  lyricsFormat.value = value as typeof lyricsFormat.value
+}
 
 function pathToTitle(path: string): string {
   return path.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '') ?? path
@@ -258,9 +267,14 @@ onMounted(async () => {
         <label class="field">
           <div class="lyrics-header">
             <span class="label">歌词</span>
-            <select v-model="lyricsFormat" class="format-select">
-              <option v-for="f in lyricsFormats" :key="f.value" :value="f.value">{{ f.label }}</option>
-            </select>
+            <ComboBox
+              class="format-select"
+              width="150px"
+              aria-label="歌词格式"
+              :options="lyricsFormatOptions"
+              :model-value="lyricsFormat"
+              @update:model-value="setLyricsFormat"
+            />
           </div>
           <p class="format-desc">{{ currentFormatDesc }}</p>
           <textarea v-model="lyrics" rows="8" :disabled="isLoadingDefaults" placeholder="粘贴歌词文本"></textarea>
@@ -448,18 +462,12 @@ onMounted(async () => {
 }
 
 .format-select {
-  padding: 4px 8px;
-  border: 1px solid var(--fluent-border);
-  border-radius: 6px;
-  background: var(--fluent-bg-glass);
-  color: var(--fluent-text);
-  font-size: 12px;
-  outline: none;
-  cursor: pointer;
+  flex: none;
 }
 
-.format-select:focus {
-  border-color: var(--fluent-accent);
+.format-select :deep(.win-combo) {
+  min-height: 28px;
+  font-size: 12px;
 }
 
 .format-desc {
