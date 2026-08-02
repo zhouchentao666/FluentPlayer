@@ -1,6 +1,6 @@
-﻿<script lang="ts" setup>
+<script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
-import { Version, OpenMusicFolder } from '@bridge/app'
+import { Version, OpenMusicFolder, DefaultMusicFolder } from '@bridge/app'
 import {
   type AppSettings,
   HOTKEY_ACTIONS,
@@ -32,15 +32,6 @@ const emit = defineEmits<{
 
 const appVersion = ref('')
 
-async function selectDownloadFolder() {
-  try {
-    const picked = await OpenMusicFolder()
-    if (picked) update({ downloadFolder: picked })
-  } catch {
-    // 用户取消或对话框不可用
-  }
-}
-
 onMounted(async () => {
   try {
     appVersion.value = await Version()
@@ -52,6 +43,27 @@ onMounted(async () => {
 function update(partial: Partial<AppSettings>) {
   emit('update:settings', { ...props.settings, ...partial })
 }
+
+// 下载目录：选择自定义文件夹
+async function selectDownloadFolder() {
+  try {
+    const dir = await OpenMusicFolder()
+    if (dir) update({ downloadFolder: dir })
+  } catch {
+    // 用户取消或失败
+  }
+}
+
+// 下载目录：恢复默认（系统音乐文件夹）
+function resetDownloadFolder() {
+  update({ downloadFolder: '' })
+}
+
+// 显示用：当前下载目录（为空时显示默认音乐文件夹）
+const downloadFolderDisplay = computed(() => {
+  const saved = props.settings.downloadFolder
+  return saved && saved.trim() ? saved.trim() : '（默认：系统音乐文件夹）'
+})
 
 function updateHotkey(action: HotkeyAction, key: string | undefined) {
   const next = { ...props.settings.hotkeys }
@@ -147,7 +159,7 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="在线音质">
+      <SettingCard title="在线设置">
         <SettingRow label="播放音质" description="在线播放优先请求的音质，获取失败时自动向下降级">
           <ComboBox
             width="160px"
@@ -165,6 +177,15 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
             :model-value="settings.downloadQuality"
             @update:model-value="value => update({ downloadQuality: value as AudioQuality })"
           />
+        </SettingRow>
+        <SettingRow label="下载保存目录" description="在线歌曲下载后保存到的文件夹，未设置时使用系统音乐文件夹，下载时不再弹出选择框">
+          <div class="folder-path" :title="downloadFolderDisplay">{{ downloadFolderDisplay }}</div>
+          <button class="btn-secondary" @click="selectDownloadFolder">选择文件夹</button>
+          <button
+            class="btn-secondary"
+            :disabled="!settings.downloadFolder"
+            @click="resetDownloadFolder"
+          >恢复默认</button>
         </SettingRow>
       </SettingCard>
 
@@ -276,6 +297,12 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
             @update:model-value="value => update({ autoStart: value })"
           />
         </SettingRow>
+        <SettingRow label="启动时检查更新" description="每次启动自动检查新版本，发现更新时弹出提示">
+          <ToggleSwitch
+            :model-value="settings.checkUpdateOnLaunch"
+            @update:model-value="value => update({ checkUpdateOnLaunch: value })"
+          />
+        </SettingRow>
         <SettingRow label="启用系统托盘" description="在任务栏托盘显示 fluentplayer 图标">
           <ToggleSwitch
             :model-value="settings.trayEnabled"
@@ -293,28 +320,6 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
           <ToggleSwitch
             :model-value="settings.systemMediaControl"
             @update:model-value="value => update({ systemMediaControl: value })"
-          />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="在线设置">
-        <SettingRow label="在线音质" description="在线播放与下载默认使用的音质档位">
-          <SegmentedControl
-            :options="AUDIO_QUALITY_OPTIONS"
-            :model-value="settings.onlineQuality"
-            @update:model-value="value => update({ onlineQuality: value as AudioQuality })"
-          />
-        </SettingRow>
-        <SettingRow label="下载保存位置" description="在线下载保存到的本地文件夹，默认为系统音乐文件夹">
-          <div class="folder-row">
-            <span class="setting-value folder-path">{{ settings.downloadFolder || '系统音乐文件夹' }}</span>
-            <button class="fluent-btn" type="button" @click="selectDownloadFolder">选择文件夹</button>
-          </div>
-        </SettingRow>
-        <SettingRow label="下载不弹出选择地址" description="开启后下载直接保存到上述文件夹，不再每次弹出“选择保存位置”对话框">
-          <ToggleSwitch
-            :model-value="settings.downloadWithoutDialog"
-            @update:model-value="value => update({ downloadWithoutDialog: value })"
           />
         </SettingRow>
       </SettingCard>
@@ -344,6 +349,14 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
   color: var(--fluent-text);
   overflow-y: auto;
   box-sizing: border-box;
+}
+.folder-path {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--fluent-text-secondary, #888);
 }
 .settings-header {
   display: flex;
@@ -397,15 +410,5 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
 .fluent-btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.folder-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.folder-path {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 </style>

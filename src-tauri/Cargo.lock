@@ -1102,6 +1102,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluentplayer"
+version = "1.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "encoding_rs",
+ "lofty",
+ "notify",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-http",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "urlencoding",
+ "walkdir",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4283,27 +4304,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
-]
-
-[[package]]
-name = "fluentplayer"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "encoding_rs",
- "lofty",
- "notify",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-http",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "urlencoding",
- "walkdir",
 ]
 
 [[package]]

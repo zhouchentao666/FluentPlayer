@@ -26,7 +26,6 @@ pub fn run() {
             commands::dialogs::open_music_files,
             commands::dialogs::open_music_folder,
             commands::dialogs::open_image_file,
-            commands::dialogs::get_default_music_folder,
             // 离线文件下载
             commands::download::save_file,
             commands::download::download_file,
@@ -49,6 +48,7 @@ pub fn run() {
             commands::system::emit_metadata_changed,
             commands::system::open_song_editor,
             commands::system::set_close_to_tray,
+            commands::system::default_music_folder,
             // 托盘
             commands::tray::enable_tray,
             commands::tray::set_tray_song_info,

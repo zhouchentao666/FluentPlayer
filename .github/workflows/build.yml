@@ -60,28 +60,20 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # Tag push -> build and publish a GitHub release
-      - name: Build (release)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'FluentPlayer ${{ github.ref_name }}'
-          releaseBody: 'Automated build of FluentPlayer for Windows / Linux / macOS.'
-          releaseDraft: true
-          prerelease: false
-
-      # Branch push -> build only and upload artifacts (no release)
-      - name: Build (artifacts)
-        if: "!startsWith(github.ref, 'refs/tags/')"
+      - name: Build
         run: npm run tauri build
 
-      - name: Upload artifacts
-        if: "!startsWith(github.ref, 'refs/tags/')"
-        uses: actions/upload-artifact@v4
+      # 自动发布发行版：tag 推送为正式版，分支推送为预发布(nightly)
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          name: fluentplayer-${{ matrix.platform }}
-          path: src-tauri/target/release/bundle/**/*
-          if-no-files-found: error
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('nightly-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('FluentPlayer {0}', github.ref_name) || format('FluentPlayer Nightly Build #{0}', github.run_number) }}
+          body: |
+            Automated build of FluentPlayer for Windows / Linux / macOS.
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          files: |
+            src-tauri/target/release/bundle/**/*

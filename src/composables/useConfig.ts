@@ -105,6 +105,10 @@ export interface AppSettings {
   playQuality: AudioQuality
   /** 在线下载首选音质（获取不到时自动向下降级）。 */
   downloadQuality: AudioQuality
+  /** 在线下载保存目录；为空字符串时回退到系统音乐文件夹。 */
+  downloadFolder: string
+  /** 是否在启动时自动检查更新（默认开）。 */
+  checkUpdateOnLaunch: boolean
   /** 是否把播放信息同步到系统媒体控制中心（SMTC / MediaSession）。 */
   systemMediaControl: boolean
   windowEffect: WindowEffect
@@ -133,14 +137,6 @@ export interface AppSettings {
   playlistSorts: Record<string, PlaylistSort>
   localMetadata: Record<string, LocalSongMetadata>
   pinnedOnlinePlaylists: PinnedOnlineItem[]
-  /** 窗口失焦时是否保持材质（模糊）效果。 */
-  keepMaterialOnBlur: boolean
-  /** 在线下载保存的本地文件夹（空字符串表示使用系统音乐文件夹）。 */
-  downloadFolder: string
-  /** 下载时默认不弹出“选择保存位置”对话框，直接下载到 downloadFolder。 */
-  downloadWithoutDialog: boolean
-  /** 在线播放默认音质。 */
-  onlineQuality: AudioQuality
 }
 
 export interface ConfigPlayback {
@@ -221,6 +217,8 @@ export function useConfig(
           savePlaylistAndSong: config.settings.savePlaylistAndSong ?? true,
           playQuality: parseQuality((config.settings as unknown as Record<string, unknown>).playQuality, '320k'),
           downloadQuality: parseQuality((config.settings as unknown as Record<string, unknown>).downloadQuality, 'flac'),
+          downloadFolder: typeof (config.settings as unknown as Record<string, unknown>).downloadFolder === 'string' ? ((config.settings as unknown as Record<string, unknown>).downloadFolder as string) : '',
+          checkUpdateOnLaunch: ((config.settings as unknown as Record<string, unknown>).checkUpdateOnLaunch as boolean) ?? true,
           systemMediaControl: ((config.settings as unknown as Record<string, unknown>).systemMediaControl as boolean) ?? true,
           windowEffect: (config.settings.windowEffect as WindowEffect) || 'acrylic',
           customImagePath: config.settings.customImagePath || '',
@@ -248,10 +246,6 @@ export function useConfig(
           playlistSorts: (config.settings.playlistSorts as Record<string, PlaylistSort>) ?? {},
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
           pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
-          keepMaterialOnBlur: ((config.settings as unknown as Record<string, unknown>).keepMaterialOnBlur as boolean) ?? false,
-          downloadFolder: ((config.settings as unknown as Record<string, unknown>).downloadFolder as string) ?? '',
-          downloadWithoutDialog: ((config.settings as unknown as Record<string, unknown>).downloadWithoutDialog as boolean) ?? false,
-          onlineQuality: parseQuality((config.settings as unknown as Record<string, unknown>).onlineQuality, '320k'),
         }
       }
       if (config.playback) {

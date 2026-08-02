@@ -106,3 +106,19 @@ pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String
 /// 关闭到托盘偏好（前端在关闭时自行处理隐藏逻辑，这里仅保留兼容命令）
 #[tauri::command]
 pub fn set_close_to_tray(_enabled: bool) {}
+
+/// 返回系统音乐文件夹路径（下载默认保存位置）。获取失败时回退到用户主目录。
+#[tauri::command]
+pub fn default_music_folder(app: AppHandle) -> String {
+    app.path()
+        .music_dir()
+        .ok()
+        .and_then(|p| p.into_os_string().into_string().ok())
+        .or_else(|| {
+            app.path()
+                .home_dir()
+                .ok()
+                .and_then(|p| p.into_os_string().into_string().ok())
+        })
+        .unwrap_or_else(|| ".".to_string())
+}

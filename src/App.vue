@@ -10,10 +10,12 @@ import {
   ShowMainWindow,
   CloseDesktopLyric,
   SetDesktopLyricIgnoreMouseEvents,
+  Version,
 } from '@bridge/app'
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
 import Settings from './components/Settings.vue'
+import UpdateDialog from './components/UpdateDialog.vue'
 import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
 import OnlineDetail from './components/online/OnlineDetail.vue'
@@ -36,6 +38,46 @@ import { localMetadata, type LocalSongMetadata } from './composables/useLocalMet
 import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
 
+// ---- 更新检查 ----
+const showUpdate = ref(false)
+const latestVersion = ref('')
+const appVersion = ref('0.0.0')
+const UPDATE_REPO = 'zhouchentao666/FluentPlayer'
+
+function normalizeVersion(v: string): string {
+  return v.replace(/^v/i, '').trim()
+}
+
+function compareVersion(a: string, b: string): number {
+  const pa = normalizeVersion(a).split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = normalizeVersion(b).split('.').map((n) => parseInt(n, 10) || 0)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x !== y) return x - y
+  }
+  return 0
+}
+
+async function checkForUpdates() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    const tag = data?.tag_name
+    if (typeof tag !== 'string' || !tag) return
+    if (compareVersion(tag, appVersion.value) > 0) {
+      latestVersion.value = normalizeVersion(tag)
+      showUpdate.value = true
+    }
+  } catch {
+    // 网络错误时静默忽略
+  }
+}
+
 const view = ref<'main' | 'settings' | 'online' | 'online-detail'>('main')
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
@@ -48,6 +90,8 @@ const settings = ref<AppSettings>({
   accentColor: '#0078d4',
   autoplay: false,
   savePlaylistAndSong: true,
+  downloadFolder: '',
+  checkUpdateOnLaunch: true,
   windowEffect: 'acrylic',
   customImagePath: '',
   customImageOpacity: 35,
@@ -74,10 +118,6 @@ const settings = ref<AppSettings>({
   playlistSorts: {},
   localMetadata: {},
   pinnedOnlinePlaylists: [],
-  keepMaterialOnBlur: false,
-  downloadFolder: '',
-  downloadWithoutDialog: false,
-  onlineQuality: '320k',
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
@@ -403,6 +443,7 @@ watch(audio.currentSong, () => {
 
 onMounted(async () => {
   await load()
+  appVersion.value = await Version().catch(() => '0.0.0')
   localMetadata.value = settings.value.localMetadata
   if (settings.value.selectedPlaylistId && playlists.value.some(p => p.id === settings.value.selectedPlaylistId)) {
     selectPlaylist(settings.value.selectedPlaylistId)
@@ -413,6 +454,10 @@ onMounted(async () => {
   ApplyAutoStart(settings.value.autoStart).catch(() => {})
   syncTraySettings()
   await openIfEnabled()
+
+  if (settings.value.checkUpdateOnLaunch) {
+    checkForUpdates()
+  }
 
   window.addEventListener('keydown', handleHotkey)
   offFolderChanged = Events.On('folder:changed', (event: any) => {
@@ -525,14 +570,23 @@ onUnmounted(() => {
             @play="(songs, index) => audio.playSongs(songs, index)"
             @queue="audio.addToQueue"
             @add-playlist="(pid, song) => addSongs(pid, [song])"
-            @download="(song) => song.online && downloadSong(song.online, settings)"
+            @download="(song) => song.online && downloadSong(song.online)"
             @add-all="(pid, songs) => addSongs(pid, songs)"
-            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean), settings)"
+            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
             @toggle-pin="onTogglePinOnline"
             @back="view = 'online'"
           />
         </Transition>
       </main>
+
+      <Transition name="fade">
+        <UpdateDialog
+          v-if="showUpdate"
+          :current-version="appVersion"
+          :latest-version="latestVersion"
+          @close="showUpdate = false"
+        />
+      </Transition>
     </div>
     <PlayerFooter
       :current-song="audio.currentSong.value"

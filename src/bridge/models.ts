@@ -37,6 +37,10 @@ export interface AppConfig {
     selectedPlaylistId?: string
     playlistSorts?: unknown
     localMetadata?: unknown
+    playQuality?: string
+    downloadQuality?: string
+    downloadFolder?: string
+    checkUpdateOnLaunch?: boolean
   }
   playback?: {
     playlistId?: string
