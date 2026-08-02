@@ -1,11 +1,11 @@
-import { watch, onBeforeUnmount, type Ref } from 'vue'
+﻿import { watch, onBeforeUnmount, type Ref } from 'vue'
 import type { Song } from '../types'
 
 /**
  * 系统音频 API 适配（参考 LyciaMusic 的系统媒体控制思路）。
  *
  * LyciaMusic 在 Rust 侧用 souvlaki 接管 SMTC，是因为它的解码/播放在 Rust。
- * tideaudio 的音频由 WebView 里的 <audio> 播放，WebView2 会把标准
+ * fluentplayer 的音频由 WebView 里的 <audio> 播放，WebView2 会把标准
  * `navigator.mediaSession` 直接桥接到 Windows SMTC（任务栏/音量浮窗/媒体键），
  * macOS 上桥接到 Now Playing，Linux 上桥接到 MPRIS。
  * 因此这里直接适配标准 Media Session API，无需额外原生依赖。

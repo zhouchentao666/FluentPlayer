@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+﻿use std::sync::Mutex;
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, State, Wry};
@@ -61,10 +61,10 @@ pub fn enable_tray(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let mut builder = TrayIconBuilder::with_id("tideaudio-tray")
+    let mut builder = TrayIconBuilder::with_id("fluentplayer-tray")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("TideAudio")
+        .tooltip("FluentPlayer")
         .on_menu_event(|app, event| match event.id().as_ref() {
             "tray-show" => show_main(app),
             "tray-prev" => {
@@ -111,9 +111,9 @@ pub fn set_tray_song_info(state: State<'_, TrayState>, label: String) -> Result<
         };
         let _ = handles.song_item.set_text(&text);
         let tooltip = if label.trim().is_empty() {
-            "TideAudio".to_string()
+            "FluentPlayer".to_string()
         } else {
-            format!("TideAudio - {label}")
+            format!("FluentPlayer - {label}")
         };
         let _ = handles.tray.set_tooltip(Some(tooltip));
     }

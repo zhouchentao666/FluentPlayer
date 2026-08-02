@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import type { MusicInfo, SearchResult } from '@online/types/music'
 import type { Playlist } from '@online/lib/playlists'
@@ -68,7 +68,7 @@ async function loadHot() {
 onMounted(loadHot)
 
 // ---- 历史搜索记录 ----
-const HISTORY_KEY = 'tideaudio-online:searchHistory'
+const HISTORY_KEY = 'fluentplayer-online:searchHistory'
 const HISTORY_MAX = 20
 const history = ref<string[]>(loadHistory())
 

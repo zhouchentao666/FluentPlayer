@@ -1,4 +1,4 @@
-import { ref } from "vue"
+﻿import { ref } from "vue"
 import { getBuiltinLyric } from "@online/lib/lyric"
 import { bestQuality, QUALITY_LADDER, QUALITY_SHORT } from "@online/lib/quality"
 import { sourceRunner } from "@online/lib/sourceRunner"
@@ -8,8 +8,8 @@ import type { Song, SongMetadata } from "../types"
 export { QUALITY_LADDER, QUALITY_SHORT }
 export type { MusicInfo, Quality }
 
-const PREF_KEY = "tideaudio-online:preferredQuality"
-const DL_KEY = "tideaudio-online:downloadQuality"
+const PREF_KEY = "fluentplayer-online:preferredQuality"
+const DL_KEY = "fluentplayer-online:downloadQuality"
 
 /** 用户偏好音质（会自动向下降级）。 */
 export const preferredQuality = ref<Quality>(loadQuality(PREF_KEY, "320k"))
@@ -48,7 +48,7 @@ export function isOnlineSong(song: { path?: string; online?: MusicInfo | null } 
   return !!song?.online || !!song?.path?.startsWith(ONLINE_PATH_PREFIX)
 }
 
-/** MusicInfo → tideaudio Song，可加入播放队列 / 收藏进本地歌单。 */
+/** MusicInfo → fluentplayer Song，可加入播放队列 / 收藏进本地歌单。 */
 export function musicInfoToSong(m: MusicInfo): Song {
   const duration = intervalToSeconds(m.interval)
   const metadata: SongMetadata = {

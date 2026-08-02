@@ -1,8 +1,8 @@
-{
+﻿{
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "TideAudio",
+  "productName": "FluentPlayer",
   "version": "0.1.0",
-  "identifier": "com.zhouchentao.tideaudio",
+  "identifier": "com.zhouchentao.fluentplayer",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "TideAudio",
+        "title": "FluentPlayer",
         "width": 1100,
         "height": 760,
         "minWidth": 900,

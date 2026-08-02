@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+﻿<script lang="ts" setup>
 import { onMounted, ref } from 'vue'
 import { Window, System } from '@bridge/runtime'
 
@@ -35,7 +35,7 @@ onMounted(async () => {
 
 <template>
   <div class="title-bar" data-tauri-drag-region @dblclick="toggleMaximise">
-    <div class="title" data-tauri-drag-region>tideaudio</div>
+    <div class="title" data-tauri-drag-region>fluentplayer</div>
     <div class="drag-region" data-tauri-drag-region></div>
     <div class="window-controls">
       <button class="control-btn" @click="minimise" @dblclick.stop>

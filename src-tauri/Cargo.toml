@@ -1,13 +1,13 @@
-[package]
-name = "tideaudio"
+﻿[package]
+name = "fluentplayer"
 version = "0.1.0"
-description = "TideAudio - 纯离线本地音乐播放器"
+description = "FluentPlayer - 纯离线本地音乐播放器"
 authors = ["zhouchentao"]
 edition = "2021"
 license = "MIT"
 
 [lib]
-name = "tideaudio_lib"
+name = "fluentplayer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

@@ -1,4 +1,4 @@
-const PREFIX = "tideaudio-online:"
+﻿const PREFIX = "fluentplayer-online:"
 
 export async function readData<T>(file: string, fallback: T): Promise<T> {
   try {

@@ -1,4 +1,4 @@
-<script lang="ts" setup>
+﻿<script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
 import { Version } from '@bridge/app'
 import {
@@ -261,13 +261,13 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
       </SettingCard>
 
       <SettingCard title="系统">
-        <SettingRow label="开机自动启动" description="登录系统后自动运行 tideaudio">
+        <SettingRow label="开机自动启动" description="登录系统后自动运行 fluentplayer">
           <ToggleSwitch
             :model-value="settings.autoStart"
             @update:model-value="value => update({ autoStart: value })"
           />
         </SettingRow>
-        <SettingRow label="启用系统托盘" description="在任务栏托盘显示 tideaudio 图标">
+        <SettingRow label="启用系统托盘" description="在任务栏托盘显示 fluentplayer 图标">
           <ToggleSwitch
             :model-value="settings.trayEnabled"
             @update:model-value="value => update({ trayEnabled: value })"
@@ -298,7 +298,7 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
       </SettingCard>
 
       <SettingCard title="关于">
-        <SettingRow label="tideaudio" description="一个简洁的纯离线本地音乐播放器">
+        <SettingRow label="fluentplayer" description="一个简洁的纯离线本地音乐播放器">
           <span class="setting-value">v{{ appVersion || '0.0.1' }}</span>
         </SettingRow>
       </SettingCard>
