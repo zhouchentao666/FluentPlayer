@@ -15,6 +15,8 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
   const audioRef = options.audioRef || internalAudioRef
   const currentSong = ref<Song | null>(null)
   const isPlaying = ref(false)
+  // 播放加载态：在线直链解析 / 音频缓冲期间为 true，底部播放按钮显示加载动画
+  const isLoading = ref(false)
   const currentTime = ref(0)
   const duration = ref(0)
   const volume = ref(100)
@@ -47,9 +49,12 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
 
   // 播放歌曲（本地文件或在线歌曲）
   async function playLocal(song: Song, autoPlay = true) {
+    // 切换歌曲：先清空上一首的播放状态（进度/时长），并进入加载态
     currentSong.value = song
     currentTime.value = 0
     duration.value = song.metadata?.duration || 0
+    isPlaying.value = false
+    isLoading.value = true
 
     if (song.online) {
       // 在线歌曲：封面直接用 URL，播放直链异步解析
@@ -75,7 +80,9 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
         } else {
           isPlaying.value = false
         }
+        // 加载态在音频真正可播放（canplay/playing）时由 bindAudioEvents 清除
       } catch (err) {
+        isLoading.value = false
         isPlaying.value = false
         toast(`在线播放失败：${(err as Error).message}`, 'error')
       }
@@ -98,6 +105,9 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
       }
     } catch {
       isPlaying.value = false
+    } finally {
+      // 本地文件：play() 完成后即结束加载态（缓冲事件会继续由 canplay 处理）
+      if (audioRef.value && audioRef.value.readyState >= 3) isLoading.value = false
     }
   }
 
@@ -137,6 +147,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
         index.value = -1
         currentSong.value = null
         isPlaying.value = false
+        isLoading.value = false
         audioRef.value?.pause()
       } else {
         const nextIdx = Math.min(i, queue.value.length - 1)
@@ -150,6 +161,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     index.value = -1
     currentSong.value = null
     isPlaying.value = false
+    isLoading.value = false
     audioRef.value?.pause()
   }
 
@@ -158,6 +170,8 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     if (isPlaying.value) {
       audioRef.value.pause()
     } else {
+      // 从暂停恢复：若音频未就绪，进入加载态直到 canplay
+      if (audioRef.value.readyState < 3) isLoading.value = true
       audioRef.value.play().catch(() => {})
     }
   }
@@ -198,6 +212,10 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     }
     audio.addEventListener('play', () => { isPlaying.value = true })
     audio.addEventListener('pause', () => { isPlaying.value = false })
+    // 音频缓冲就绪：清除加载态（在线直链解析完成 / 本地缓冲完成）
+    audio.addEventListener('canplay', () => { isLoading.value = false })
+    audio.addEventListener('playing', () => { isLoading.value = false })
+    audio.addEventListener('error', () => { isLoading.value = false })
   }
 
   onMounted(() => {
@@ -212,6 +230,7 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     audioRef,
     currentSong,
     isPlaying,
+    isLoading,
     currentTime,
     duration,
     volume,

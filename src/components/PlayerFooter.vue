@@ -11,6 +11,7 @@ defineProps<{
   currentSong: Song | null
   coverUrl: string | null
   isPlaying: boolean
+  loading?: boolean
   currentTime: number
   duration: number
   volume: number
@@ -69,6 +70,7 @@ function formatDuration(seconds: number): string {
       <div class="section center" :class="{ faded: immersive && !isHovered }">
         <PlayerControls
           :is-playing="isPlaying"
+          :loading="loading"
           :play-mode="playMode"
           @toggle-play="emit('toggle-play')"
           @prev="emit('prev')"

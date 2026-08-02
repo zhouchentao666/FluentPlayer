@@ -4,6 +4,8 @@ export type PlayMode = 'sequential' | 'single' | 'reverse' | 'stop' | 'shuffle'
 const props = defineProps<{
   isPlaying: boolean
   playMode: PlayMode
+  /** 加载态：在线直链解析/缓冲中，播放按钮显示为加载动画 */
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -53,8 +55,18 @@ const modeConfig: Record<PlayMode, { icon: string; title: string }> = {
     <button class="control-btn" title="上一首" @click="emit('prev')">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" /></svg>
     </button>
-    <button class="play-btn" :title="isPlaying ? '暂停' : '播放'" @click="emit('toggle-play')">
-      <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+    <button
+      class="play-btn"
+      :class="{ loading: props.loading }"
+      :title="isPlaying ? '暂停' : '播放'"
+      :disabled="props.loading"
+      @click="emit('toggle-play')"
+    >
+      <svg v-if="props.loading" class="play-spinner" viewBox="0 0 24 24" aria-hidden="true">
+        <circle class="spinner-track" cx="12" cy="12" r="9" />
+        <path class="spinner-head" d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+      </svg>
+      <svg v-else-if="isPlaying" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
       <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M8.3 5v14l11-7z" /></svg>
     </button>
     <button class="control-btn" title="下一首" @click="emit('next')">
@@ -141,5 +153,47 @@ const modeConfig: Record<PlayMode, { icon: string; title: string }> = {
 .play-btn svg {
   width: 24px;
   height: 24px;
+}
+
+.play-btn.loading {
+  background: var(--fluent-bg-active);
+  cursor: default;
+}
+
+.play-btn.loading:hover {
+  background: var(--fluent-bg-active);
+  color: inherit;
+}
+
+.play-spinner {
+  width: 24px;
+  height: 24px;
+  animation: play-spin 0.8s linear infinite;
+}
+
+.spinner-track {
+  fill: none;
+  stroke: rgba(128, 128, 128, 0.3);
+  stroke-width: 2.2;
+}
+
+.spinner-head {
+  color: var(--fluent-accent);
+}
+
+@keyframes play-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.play-btn.loading .play-spinner {
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-spinner {
+    animation-duration: 1.6s;
+  }
 }
 </style>

@@ -534,6 +534,7 @@ onUnmounted(() => {
       :current-song="audio.currentSong.value"
       :cover-url="audio.coverUrl.value"
       :is-playing="audio.isPlaying.value"
+      :loading="audio.isLoading.value"
       :current-time="audio.currentTime.value"
       :duration="audio.duration.value"
       :volume="audio.volume.value"

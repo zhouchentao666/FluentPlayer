@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ref, computed } from 'vue'
+import WinUISlider from '../settings/WinUISlider.vue'
 
 const props = defineProps<{
   playbackRate: number
@@ -17,8 +18,7 @@ const presets = [0.5, 1, 1.25, 1.5, 2]
 
 const displayRate = computed(() => `${props.playbackRate.toFixed(2)}x`)
 
-function handleInput(e: Event) {
-  const value = parseFloat((e.target as HTMLInputElement).value)
+function handleInput(value: number) {
   emit('set-playback-rate', value)
 }
 
@@ -59,14 +59,14 @@ function stopDrag() {
     <div v-if="showPopup || isDragging" class="rate-popup">
       <div class="rate-panel">
         <div class="rate-value">{{ displayRate }}</div>
-        <input
-          type="range"
+        <WinUISlider
           class="rate-slider"
-          min="0.25"
-          max="16"
-          step="0.05"
-          :value="playbackRate"
-          @input="handleInput"
+          :model-value="playbackRate"
+          :min="0.25"
+          :max="16"
+          :step="0.05"
+          aria-label="播放倍速"
+          @update:model-value="handleInput"
           @pointerdown="startDrag"
           @pointerup="stopDrag"
         />
@@ -128,33 +128,6 @@ function stopDrag() {
 
 .rate-slider {
   width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--fluent-bg-active);
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
-}
-
-.rate-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--fluent-accent);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-}
-
-.rate-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--fluent-accent);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .rate-presets {

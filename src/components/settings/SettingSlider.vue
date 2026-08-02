@@ -1,32 +1,42 @@
 <script lang="ts" setup>
-defineProps<{
-  label?: string
-  min?: number
-  max?: number
-  step?: number
-  modelValue: number
-}>()
+import WinUISlider from './WinUISlider.vue'
+
+withDefaults(
+  defineProps<{
+    label?: string
+    min?: number
+    max?: number
+    step?: number
+    modelValue: number
+  }>(),
+  {
+    label: '',
+    min: 0,
+    max: 100,
+    step: 1,
+  }
+)
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: number): void
 }>()
 
-function handleInput(event: Event) {
-  emit('update:modelValue', Number((event.target as HTMLInputElement).value))
+function handleInput(value: number) {
+  emit('update:modelValue', value)
 }
 </script>
 
 <template>
   <div class="slider-row">
     <span v-if="label" class="slider-label">{{ label }}</span>
-    <input
-      type="range"
+    <WinUISlider
       class="slider-input"
-      :min="min ?? 0"
-      :max="max ?? 100"
-      :step="step ?? 1"
-      :value="modelValue"
-      @input="handleInput"
+      :model-value="modelValue"
+      :min="min"
+      :max="max"
+      :step="step"
+      :aria-label="label || 'slider'"
+      @update:model-value="handleInput"
     />
     <span class="slider-value">{{ modelValue }}</span>
   </div>
@@ -48,8 +58,6 @@ function handleInput(event: Event) {
 
 .slider-input {
   flex: 1;
-  accent-color: var(--fluent-accent);
-  cursor: pointer;
 }
 
 .slider-value {

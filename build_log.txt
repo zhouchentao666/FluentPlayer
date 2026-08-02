@@ -4,7 +4,7 @@
 
 [36mvite v5.4.21 [32mbuilding for production...[36m[39m
 transforming...
-[32m✓[39m 670 modules transformed.
+[32m✓[39m 673 modules transformed.
 [plugin:vite:reporter] [plugin vite:reporter] 
 (!) D:/zhouchentao/biancheng/Web/tideaudio/tideaudio/src/online/lib/search/txDesktop.ts is dynamically imported by D:/zhouchentao/biancheng/Web/tideaudio/tideaudio/src/online/lib/albums/search.ts, D:/zhouchentao/biancheng/Web/tideaudio/tideaudio/src/online/lib/playlists/search.ts but also statically imported by D:/zhouchentao/biancheng/Web/tideaudio/tideaudio/src/online/lib/search/tx.ts, dynamic import will not move module into another chunk.
 
@@ -15,11 +15,11 @@ rendering chunks...
 computing gzip size...
 [2mdist/[22m[32mindex.html                                      [39m[1m[2m    0.40 kB[22m[1m[22m[2m │ gzip:   0.27 kB[22m
 [2mdist/[22m[32massets/nunito-v16-latin-regular-CSmEcOMa.woff2  [39m[1m[2m   18.97 kB[22m[1m[22m
-[2mdist/[22m[35massets/index-BqUCTMel.css                       [39m[1m[2m   92.62 kB[22m[1m[22m[2m │ gzip:  14.42 kB[22m
-[2mdist/[22m[36massets/index-ByeYo-jw.js                        [39m[1m[33m1,156.92 kB[39m[22m[2m │ gzip: 356.64 kB[22m
+[2mdist/[22m[35massets/index-DYxTETwA.css                       [39m[1m[2m   93.63 kB[22m[1m[22m[2m │ gzip:  14.66 kB[22m
+[2mdist/[22m[36massets/index-XHYGJC0W.js                        [39m[1m[33m1,157.32 kB[39m[22m[2m │ gzip: 356.75 kB[22m
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-[32m✓ built in 5.45s[39m
+[32m✓ built in 4.69s[39m
