@@ -50,6 +50,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Clean stale build artifacts
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri/target/release/bundle"
+          if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
+          Write-Host "Cleaned bundle dir to avoid stale setup artifacts"
+
       - name: Install frontend dependencies
         run: npm install
 
