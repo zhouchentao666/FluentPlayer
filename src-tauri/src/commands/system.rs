@@ -111,7 +111,7 @@ pub fn set_close_to_tray(_enabled: bool) {}
 #[tauri::command]
 pub fn default_music_folder(app: AppHandle) -> String {
     app.path()
-        .music_dir()
+        .audio_dir()
         .ok()
         .and_then(|p| p.into_os_string().into_string().ok())
         .or_else(|| {
