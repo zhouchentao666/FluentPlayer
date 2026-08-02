@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, inject, computed, type Ref } from 'vue'
+import { ref, onMounted, inject, computed, watch, type Ref } from 'vue'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
@@ -144,8 +144,25 @@ const { state, importScript, importScriptFromUrl, removeScript, toggleEnabled, i
   useOnlineSources()
 const importUrl = ref('')
 
+// 在线播放因无音源失败时（App 派发 pendingOpenSources），自动打开音源管理弹窗引导安装
+const pendingOpenSources = inject<Ref<boolean>>('pendingOpenSources')
+function openSourceManager() {
+  sourcesModal.value = true
+}
+
 onMounted(() => {
   initOnlineSources().catch(() => {})
+  if (pendingOpenSources?.value) {
+    openSourceManager()
+    pendingOpenSources.value = false
+  }
+})
+
+watch(pendingOpenSources ?? ref(false), (v) => {
+  if (v) {
+    openSourceManager()
+    pendingOpenSources!.value = false
+  }
 })
 
 async function onPickFile(e: Event) {

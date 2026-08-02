@@ -8,7 +8,7 @@ import PlaylistCreateInput from './sidebar/PlaylistCreateInput.vue'
 const props = defineProps<{
   playlists: Playlist[]
   selectedId: string
-  activeView?: 'main' | 'settings' | 'online'
+  activeView?: 'main' | 'settings' | 'online' | 'sponsor'
   onlineTab?: OnlineTab
   pinnedOnline?: PinnedOnlineItem[]
 }>()
@@ -21,6 +21,7 @@ const emit = defineEmits<{
   (e: 'select', id: string): void
   (e: 'open-online-item', item: PinnedOnlineItem): void
   (e: 'unpin-online', id: string): void
+  (e: 'open-sponsor'): void
   (e: 'drop-songs', payload: { targetPlaylistId: string; sourcePlaylistId: string; songIds: string[] }): void
 }>()
 
@@ -151,6 +152,17 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
       </button>
     </div>
     <div class="bottom">
+      <button
+        :class="['nav-btn', 'bottom-btn', { active: activeView === 'sponsor' }]"
+        @click="emit('open-sponsor')"
+      >
+        <span class="icon">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 14.5l-4.5-2.5c-1 .3-2 .2-2.5-.5-.5-.7-.3-1.6.4-2.1.6-.4 1.4-.4 2-.1M10 14.5l4.5-2.5c1 .3 2 .2 2.5-.5.5-.7.3-1.6-.4-2.1-.6-.4-1.4-.4-2-.1M10 14.5V4.5M10 9c1.5 0 2.5-1 2.5-2.2S11.4 4.6 10 4.6 7.5 5.6 7.5 6.8 8.5 9 10 9z" />
+          </svg>
+        </span>
+        <span>赞助作者</span>
+      </button>
       <button
         :class="['settings-btn', { active: activeView === 'settings' }]"
         @click="emit('open-settings')"

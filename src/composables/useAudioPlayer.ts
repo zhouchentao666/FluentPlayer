@@ -82,9 +82,14 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
         }
         // 加载态在音频真正可播放（canplay/playing）时由 bindAudioEvents 清除
       } catch (err) {
+        const msg = (err as Error).message || ''
         isLoading.value = false
         isPlaying.value = false
-        toast(`在线播放失败：${(err as Error).message}`, 'error')
+        toast(`在线播放失败：${msg}`, 'error')
+        // 没有任何可用音源时，引导用户前往在线设置导入音源脚本
+        if (msg.includes('没有可用的自定义音源') || msg.includes('noEnabled')) {
+          window.dispatchEvent(new CustomEvent('fluent:no-source'))
+        }
       }
       return
     }

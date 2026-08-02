@@ -19,6 +19,7 @@ import UpdateDialog from './components/UpdateDialog.vue'
 import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
 import OnlineDetail from './components/online/OnlineDetail.vue'
+import SponsorView from './components/SponsorView.vue'
 import { downloadSong, downloadMany } from './online/lib/download'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
@@ -78,7 +79,18 @@ async function checkForUpdates() {
   }
 }
 
-const view = ref<'main' | 'settings' | 'online' | 'online-detail'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor'>('main')
+
+// 在线播放因无音源失败时，跳转到在线视图并请求打开音源管理弹窗
+const pendingOpenSources = ref(false)
+provide('pendingOpenSources', pendingOpenSources)
+function handleNoSource() {
+  onlineTab.value = 'search'
+  view.value = 'online'
+  pendingOpenSources.value = true
+}
+window.addEventListener('fluent:no-source', handleNoSource)
+onUnmounted(() => window.removeEventListener('fluent:no-source', handleNoSource))
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
@@ -515,6 +527,7 @@ onUnmounted(() => {
         @update:selected-id="selectedId = $event"
         @open-settings="view = 'settings'"
         @open-online="openOnline"
+        @open-sponsor="view = 'sponsor'"
         @select="onSelectPlaylist"
         @open-online-item="openOnlineItem"
         @unpin-online="unpinOnlineItem"
@@ -575,6 +588,11 @@ onUnmounted(() => {
             @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
             @toggle-pin="onTogglePinOnline"
             @back="view = 'online'"
+          />
+          <SponsorView
+            v-else-if="view === 'sponsor'"
+            :key="'sponsor'"
+            @close="view = 'main'"
           />
         </Transition>
       </main>
