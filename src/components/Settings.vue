@@ -179,13 +179,15 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
           />
         </SettingRow>
         <SettingRow label="下载保存目录" description="在线歌曲下载后保存到的文件夹，未设置时使用系统音乐文件夹，下载时不再弹出选择框">
-          <div class="folder-path" :title="downloadFolderDisplay">{{ downloadFolderDisplay }}</div>
-          <button class="btn-secondary" @click="selectDownloadFolder">选择文件夹</button>
-          <button
-            class="btn-secondary"
-            :disabled="!settings.downloadFolder"
-            @click="resetDownloadFolder"
-          >恢复默认</button>
+          <div class="folder-row">
+            <div class="folder-path" :title="downloadFolderDisplay">{{ downloadFolderDisplay }}</div>
+            <button class="fluent-btn" @click="selectDownloadFolder">选择文件夹</button>
+            <button
+              class="fluent-btn"
+              :disabled="!settings.downloadFolder"
+              @click="resetDownloadFolder"
+            >恢复默认</button>
+          </div>
         </SettingRow>
       </SettingCard>
 
@@ -350,8 +352,13 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
   overflow-y: auto;
   box-sizing: border-box;
 }
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .folder-path {
-  max-width: 240px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -395,20 +402,26 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
   white-space: nowrap;
 }
 .fluent-btn {
-  padding: 6px 14px;
+  height: 30px;
+  padding: 0 14px;
   border: 1px solid var(--fluent-border);
   border-radius: 6px;
   background: var(--fluent-bg-hover);
   color: var(--fluent-text);
   font-size: 13px;
+  line-height: 1;
   cursor: pointer;
-  transition: background 0.18s ease;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
-.fluent-btn:hover {
+.fluent-btn:hover:not(:disabled) {
+  background: var(--fluent-bg-active);
+  border-color: var(--fluent-input-border);
+}
+.fluent-btn:active:not(:disabled) {
   background: var(--fluent-bg-active);
 }
 .fluent-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
 }
 </style>

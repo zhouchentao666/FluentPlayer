@@ -76,4 +76,4 @@ jobs:
           draft: false
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           files: |
-            src-tauri/target/release/bundle/**/*
+            src-tauri/target/release/bundle/**/*.{exe,msi,deb,AppImage,rpm,dmg,tar.gz}
