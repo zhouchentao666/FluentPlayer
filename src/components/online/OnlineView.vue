@@ -72,11 +72,11 @@ function confirmAdd(plId: string) {
 }
 function onDownload(m: MusicInfo) {
   // 真正的离线文件下载：解析直链并保存为本地文件
-  downloadSong(m)
+  downloadSong(m, settings!.value)
 }
 function onDownloadAll(musics: MusicInfo[]) {
   // 批量离线下载到所选文件夹
-  downloadMany(musics)
+  downloadMany(musics, settings!.value)
 }
 function onOpen(item: Playlist | Album, kind: 'playlist' | 'album') {
   emit('open-detail', {

@@ -26,6 +26,7 @@ pub fn run() {
             commands::dialogs::open_music_files,
             commands::dialogs::open_music_folder,
             commands::dialogs::open_image_file,
+            commands::dialogs::get_default_music_folder,
             // 离线文件下载
             commands::download::save_file,
             commands::download::download_file,

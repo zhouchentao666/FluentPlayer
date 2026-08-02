@@ -6,6 +6,7 @@ import SettingCard from './SettingCard.vue'
 import SettingRow from './SettingRow.vue'
 import SegmentedControl from './SegmentedControl.vue'
 import SettingSlider from './SettingSlider.vue'
+import ToggleSwitch from './ToggleSwitch.vue'
 
 const props = defineProps<{
   settings: AppSettings
@@ -50,6 +51,17 @@ function clearImage() {
         :options="effects"
         :model-value="settings.windowEffect"
         @update:model-value="updateEffect"
+      />
+    </SettingRow>
+
+    <SettingRow
+      v-if="settings.windowEffect !== 'none'"
+      label="失焦保持材质"
+      description="窗口失去焦点时仍然保持模糊 / 透明材质效果；关闭则失焦时自动降级为纯色"
+    >
+      <ToggleSwitch
+        :model-value="settings.keepMaterialOnBlur"
+        @update:model-value="value => emit('update', { keepMaterialOnBlur: value })"
       />
     </SettingRow>
 

@@ -1,6 +1,6 @@
 ﻿<script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
-import { Version } from '@bridge/app'
+import { Version, OpenMusicFolder } from '@bridge/app'
 import {
   type AppSettings,
   HOTKEY_ACTIONS,
@@ -31,6 +31,15 @@ const emit = defineEmits<{
 }>()
 
 const appVersion = ref('')
+
+async function selectDownloadFolder() {
+  try {
+    const picked = await OpenMusicFolder()
+    if (picked) update({ downloadFolder: picked })
+  } catch {
+    // 用户取消或对话框不可用
+  }
+}
 
 onMounted(async () => {
   try {
@@ -288,6 +297,28 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
         </SettingRow>
       </SettingCard>
 
+      <SettingCard title="在线设置">
+        <SettingRow label="在线音质" description="在线播放与下载默认使用的音质档位">
+          <SegmentedControl
+            :options="AUDIO_QUALITY_OPTIONS"
+            :model-value="settings.onlineQuality"
+            @update:model-value="value => update({ onlineQuality: value as AudioQuality })"
+          />
+        </SettingRow>
+        <SettingRow label="下载保存位置" description="在线下载保存到的本地文件夹，默认为系统音乐文件夹">
+          <div class="folder-row">
+            <span class="setting-value folder-path">{{ settings.downloadFolder || '系统音乐文件夹' }}</span>
+            <button class="fluent-btn" type="button" @click="selectDownloadFolder">选择文件夹</button>
+          </div>
+        </SettingRow>
+        <SettingRow label="下载不弹出选择地址" description="开启后下载直接保存到上述文件夹，不再每次弹出“选择保存位置”对话框">
+          <ToggleSwitch
+            :model-value="settings.downloadWithoutDialog"
+            @update:model-value="value => update({ downloadWithoutDialog: value })"
+          />
+        </SettingRow>
+      </SettingCard>
+
       <SettingCard title="桌面歌词">
         <DesktopLyricSettings
           :config="settings.desktopLyric"
@@ -366,5 +397,15 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
 .fluent-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.folder-path {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

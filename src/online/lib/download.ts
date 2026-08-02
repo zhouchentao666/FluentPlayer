@@ -1,8 +1,12 @@
 import { resolveOnlineUrl, downloadQuality } from '../player'
 import { cdnHeadersForUrl } from './cdnHeaders'
 import type { MusicInfo } from '../types/music'
+import type { AppSettings } from '../../composables/useConfig'
 import { toast } from '../../composables/useToast'
-import { SaveFile, DownloadFile, OpenMusicFolder } from '../../bridge/app'
+import { SaveFile, DownloadFile, OpenMusicFolder, GetDefaultMusicFolder } from '../../bridge/app'
+
+/** 影响下载行为的设置子集。 */
+export type DownloadSettings = Pick<AppSettings, 'downloadWithoutDialog' | 'downloadFolder'>
 
 /** 去除文件名中的非法字符，并限制长度。 */
 function safeFileName(name: string): string {
@@ -11,6 +15,12 @@ function safeFileName(name: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim()
     .slice(0, 120)
+}
+
+/** 把目录与文件名拼成完整路径（按所在平台选择分隔符）。 */
+function joinPath(dir: string, file: string): string {
+  const sep = dir.includes('\\') ? '\\' : '/'
+  return dir.endsWith(sep) ? dir + file : dir + sep + file
 }
 
 /** 根据直链路径推断音频扩展名；无法判断时回退为 mp3。 */
@@ -27,10 +37,12 @@ function inferExt(url: string): string {
 
 /**
  * 真正的离线文件下载（单首）：
- * 解析在线直链 → 弹出“保存文件”对话框 → 写入本地文件。
+ * 解析在线直链 → 写入本地文件。
+ * 若 settings.downloadWithoutDialog 为真，直接下载到 downloadFolder（空则用系统音乐文件夹），
+ * 不弹出“保存文件”对话框；否则弹出对话框让用户选择保存位置。
  * 返回是否下载成功。
  */
-export async function downloadSong(m: MusicInfo): Promise<boolean> {
+export async function downloadSong(m: MusicInfo, settings?: DownloadSettings): Promise<boolean> {
   let url: string
   try {
     const r = await resolveOnlineUrl(m, downloadQuality.value)
@@ -46,8 +58,20 @@ export async function downloadSong(m: MusicInfo): Promise<boolean> {
 
   const base = `${m.singer ? m.singer + ' - ' : ''}${m.name}`
   const name = safeFileName(base) + '.' + inferExt(url)
-  const dest = await SaveFile(name)
-  if (!dest) return false // 用户取消
+
+  let dest: string
+  if (settings?.downloadWithoutDialog) {
+    const folder = (settings.downloadFolder || '').trim() || (await GetDefaultMusicFolder())
+    if (!folder) {
+      toast('未设置下载文件夹，且无法获取系统音乐文件夹', 'error')
+      return false
+    }
+    dest = joinPath(folder, name)
+  } else {
+    const picked = await SaveFile(name)
+    if (!picked) return false // 用户取消
+    dest = picked
+  }
 
   toast(`开始下载：${m.name}`, 'info')
   try {
@@ -63,12 +87,24 @@ export async function downloadSong(m: MusicInfo): Promise<boolean> {
 
 /**
  * 真正的离线文件下载（批量）：
- * 选择目标文件夹 → 逐首解析直链并下载（受限并发）。
+ * 若 settings.downloadWithoutDialog 为真，直接下载到 downloadFolder（空则用系统音乐文件夹）；
+ * 否则弹出“选择文件夹”对话框让用户选择保存位置。之后逐首解析直链并下载（受限并发）。
  */
-export async function downloadMany(musics: MusicInfo[]): Promise<void> {
+export async function downloadMany(musics: MusicInfo[], settings?: DownloadSettings): Promise<void> {
   if (!musics.length) return
-  const folder = await OpenMusicFolder()
-  if (!folder) return // 用户取消
+  let folder: string
+  if (settings?.downloadWithoutDialog) {
+    const f = (settings.downloadFolder || '').trim() || (await GetDefaultMusicFolder())
+    if (!f) {
+      toast('未设置下载文件夹，且无法获取系统音乐文件夹', 'error')
+      return
+    }
+    folder = f
+  } else {
+    const picked = await OpenMusicFolder()
+    if (!picked) return // 用户取消
+    folder = picked
+  }
 
   let done = 0
   let fail = 0

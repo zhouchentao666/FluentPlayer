@@ -74,6 +74,10 @@ const settings = ref<AppSettings>({
   playlistSorts: {},
   localMetadata: {},
   pinnedOnlinePlaylists: [],
+  keepMaterialOnBlur: false,
+  downloadFolder: '',
+  downloadWithoutDialog: false,
+  onlineQuality: '320k',
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
@@ -521,9 +525,9 @@ onUnmounted(() => {
             @play="(songs, index) => audio.playSongs(songs, index)"
             @queue="audio.addToQueue"
             @add-playlist="(pid, song) => addSongs(pid, [song])"
-            @download="(song) => song.online && downloadSong(song.online)"
+            @download="(song) => song.online && downloadSong(song.online, settings)"
             @add-all="(pid, songs) => addSongs(pid, songs)"
-            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
+            @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean), settings)"
             @toggle-pin="onTogglePinOnline"
             @back="view = 'online'"
           />

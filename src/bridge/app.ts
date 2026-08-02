@@ -11,6 +11,11 @@ export function OpenMusicFolder(): Promise<string> {
   return invoke('open_music_folder')
 }
 
+/** 获取系统默认音乐文件夹路径（不弹窗）。 */
+export function GetDefaultMusicFolder(): Promise<string> {
+  return invoke('get_default_music_folder')
+}
+
 export function OpenImageFile(): Promise<string> {
   return invoke('open_image_file')
 }

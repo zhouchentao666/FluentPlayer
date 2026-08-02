@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, inject, ref, type Ref } from 'vue'
 import type { Playlist, Song } from '../types'
 import type { SortMode } from '../composables/usePlaylistView'
+import type { AppSettings } from '../composables/useConfig'
 import { OpenInExplorer, OpenSongEditor } from '@bridge/app'
 import { downloadSong } from '@online/lib/download'
 import WinUICheckBox from './settings/WinUICheckBox.vue'
@@ -11,6 +12,8 @@ import {
   displayAlbum,
   displayDuration,
 } from '../composables/usePlaylistDisplay'
+
+const settings = inject<Ref<AppSettings>>('settings')
 
 const props = defineProps<{
   songs: Song[]
@@ -54,7 +57,7 @@ async function download(song: Song) {
   if (!song.online || downloading.value.has(song.id)) return
   downloading.value = new Set(downloading.value).add(song.id)
   try {
-    await downloadSong(song.online)
+    await downloadSong(song.online, settings?.value)
   } finally {
     const next = new Set(downloading.value)
     next.delete(song.id)

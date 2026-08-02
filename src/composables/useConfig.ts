@@ -133,6 +133,14 @@ export interface AppSettings {
   playlistSorts: Record<string, PlaylistSort>
   localMetadata: Record<string, LocalSongMetadata>
   pinnedOnlinePlaylists: PinnedOnlineItem[]
+  /** 窗口失焦时是否保持材质（模糊）效果。 */
+  keepMaterialOnBlur: boolean
+  /** 在线下载保存的本地文件夹（空字符串表示使用系统音乐文件夹）。 */
+  downloadFolder: string
+  /** 下载时默认不弹出“选择保存位置”对话框，直接下载到 downloadFolder。 */
+  downloadWithoutDialog: boolean
+  /** 在线播放默认音质。 */
+  onlineQuality: AudioQuality
 }
 
 export interface ConfigPlayback {
@@ -240,6 +248,10 @@ export function useConfig(
           playlistSorts: (config.settings.playlistSorts as Record<string, PlaylistSort>) ?? {},
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
           pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
+          keepMaterialOnBlur: ((config.settings as unknown as Record<string, unknown>).keepMaterialOnBlur as boolean) ?? false,
+          downloadFolder: ((config.settings as unknown as Record<string, unknown>).downloadFolder as string) ?? '',
+          downloadWithoutDialog: ((config.settings as unknown as Record<string, unknown>).downloadWithoutDialog as boolean) ?? false,
+          onlineQuality: parseQuality((config.settings as unknown as Record<string, unknown>).onlineQuality, '320k'),
         }
       }
       if (config.playback) {
