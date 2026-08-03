@@ -27,6 +27,7 @@ import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
+import { useOnlineSources } from '@online/store'
 import { toast } from './composables/useToast'
 import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, type PinnedOnlineItem, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
@@ -83,17 +84,6 @@ async function checkForUpdates() {
 
 const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor'>('main')
 
-// 在线播放因无音源失败时，跳转到在线视图并请求打开音源管理弹窗
-const pendingOpenSources = ref(false)
-provide('pendingOpenSources', pendingOpenSources)
-function handleNoSource() {
-  onlineTab.value = 'search'
-  view.value = 'online'
-  pendingOpenSources.value = true
-}
-window.addEventListener('fluent:no-source', handleNoSource)
-onUnmounted(() => window.removeEventListener('fluent:no-source', handleNoSource))
-
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
 let dragDepth = 0
@@ -134,6 +124,9 @@ onMounted(async () => {
   } catch {
     // 拖放不可用（如非 Tauri 环境）时静默忽略
   }
+  // 启动后即初始化在线音源，使音源 handler 尽快就绪，
+  // 避免用户首次进入在线视图播放时因初始化未完成而误判为“无音源”。
+  void useOnlineSources().initOnlineSources().catch(() => {})
 })
 onUnmounted(() => {
   unlistenDrag?.()

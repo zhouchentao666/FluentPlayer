@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, inject, computed, watch, type Ref } from 'vue'
+import { ref, onMounted, inject, computed, type Ref } from 'vue'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
@@ -144,37 +144,31 @@ const { state, importScript, importScriptFromUrl, removeScript, toggleEnabled, i
   useOnlineSources()
 const importUrl = ref('')
 
-// 在线播放因无音源失败时（App 派发 pendingOpenSources），自动打开音源管理弹窗引导安装
-const pendingOpenSources = inject<Ref<boolean>>('pendingOpenSources')
-function openSourceManager() {
-  sourcesModal.value = true
-}
-
 onMounted(() => {
   initOnlineSources().catch(() => {})
-  if (pendingOpenSources?.value) {
-    openSourceManager()
-    pendingOpenSources.value = false
-  }
-})
-
-watch(pendingOpenSources ?? ref(false), (v) => {
-  if (v) {
-    openSourceManager()
-    pendingOpenSources!.value = false
-  }
 })
 
 async function onPickFile(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  try {
-    const text = await file.text()
-    await importScript(text)
-    toast('音源已导入', 'success')
-  } catch (err) {
-    toast((err as Error).message, 'error')
+  const files = input.files ? Array.from(input.files) : []
+  if (files.length === 0) return
+  let okCount = 0
+  let failCount = 0
+  const errors: string[] = []
+  for (const file of files) {
+    try {
+      const text = await file.text()
+      await importScript(text)
+      okCount += 1
+    } catch (err) {
+      failCount += 1
+      errors.push(`${file.name}: ${(err as Error).message}`)
+    }
+  }
+  if (okCount > 0) {
+    toast(`已导入 ${okCount} 个音源${failCount > 0 ? `，${failCount} 个失败` : ''}`, failCount > 0 ? 'warning' : 'success')
+  } else if (errors.length > 0) {
+    toast(errors[0], 'error')
   }
   input.value = ''
 }
@@ -250,6 +244,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
               ref="fileInput"
               type="file"
               accept=".js,.txt"
+              multiple
               style="display: none"
               @change="onPickFile"
             />
