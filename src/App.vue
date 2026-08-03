@@ -21,6 +21,7 @@ import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
 import OnlineDetail from './components/online/OnlineDetail.vue'
 import SponsorView from './components/SponsorView.vue'
+import CommentView from './components/online/CommentView.vue'
 import { downloadSong, downloadMany } from './online/lib/download'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
@@ -82,7 +83,7 @@ async function checkForUpdates() {
   }
 }
 
-const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor' | 'online-comments'>('main')
 
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
@@ -406,6 +407,12 @@ function togglePlayerDetail() {
   showPlayerDetail.value = !showPlayerDetail.value
 }
 
+// 点击全屏播放器的「评论」：关闭全屏播放器并跳转到评论界面
+function openComments() {
+  showPlayerDetail.value = false
+  view.value = 'online-comments'
+}
+
 function cyclePlayMode() {
   const modes: PlayMode[] = ['sequential', 'single', 'reverse', 'stop', 'shuffle']
   playMode.value = modes[(modes.indexOf(playMode.value) + 1) % modes.length]
@@ -560,7 +567,7 @@ onUnmounted(() => {
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
-        :active-view="view === 'online-detail' ? 'online' : view"
+        :active-view="view === 'online-detail' || view === 'online-comments' ? 'online' : view"
         :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
@@ -634,6 +641,12 @@ onUnmounted(() => {
             :key="'sponsor'"
             @close="view = 'main'"
           />
+          <CommentView
+            v-else-if="view === 'online-comments'"
+            :key="'online-comments'"
+            :song="audio.currentSong.value?.online ?? null"
+            @close="view = 'online'"
+          />
         </Transition>
       </main>
 
@@ -684,6 +697,7 @@ onUnmounted(() => {
       :cover-transition="settings.coverTransition"
       @close="togglePlayerDetail"
       @seek="audio.seek"
+      @open-comments="openComments"
     />
     <PlayQueue
       :show="showQueue"

@@ -1,5 +1,6 @@
 ﻿import { ref } from "vue"
 import { getBuiltinLyric } from "@online/lib/lyric"
+import { getTtmlLyric } from "@online/lib/lyric/ttml"
 import { bestQuality, QUALITY_LADDER, QUALITY_SHORT } from "@online/lib/quality"
 import { sourceRunner } from "@online/lib/sourceRunner"
 import type { LyricInfo, MusicInfo, Quality } from "@online/types/music"
@@ -111,6 +112,13 @@ export async function resolveOnlineLyric(m: MusicInfo): Promise<LyricInfo | null
   if (!info?.lyric) {
     try {
       info = await sourceRunner.getLyric({ source: m.source, action: "lyric", info: m })
+    } catch {
+      info = null
+    }
+  }
+  if (!info?.lyric) {
+    try {
+      info = await getTtmlLyric(m)
     } catch {
       info = null
     }
