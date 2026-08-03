@@ -236,7 +236,7 @@ async function getKgComments(song: MusicInfo, page: number, limit: number): Prom
   const hash = song.meta.hash
   if (!hash) throw new Error("缺少歌曲 hash")
   const timestamp = Date.now()
-  const params = `appid=1005&clienttime=${timestamp}&clienttoken=0&clientver=11409&code=fc4be23b4e972707f36b8a828a93ba8a&dfid=0&extdata=${hash}&kugouid=0&mid=16249512204336365674023395779019&mixsongid=&p=${page}&pagesize=${limit}&uuid=0&ver=10`
+  const params = `dfid=0&mid=16249512204336365674023395779019&clienttime=${timestamp}&uuid=0&extdata=${hash}&appid=1005&code=fc4be23b4e972707f36b8a828a93ba8a&schash=${hash}&clientver=11409&p=${page}&clienttoken=0&pagesize=${limit}&ver=10&kugouid=0`
   const url = `https://m.comment.service.kugou.com/r/v1/rank/newest?${params}&signature=${kgSignature(params)}`
   const res = await tauriFetch(url, {
     headers: {

@@ -324,32 +324,28 @@ function formatDuration(seconds: number): string {
 .quality-pop {
   position: absolute;
   right: 0;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% + 8px);
   z-index: 200;
-  min-width: 104px;
-  padding: 6px;
-  background: var(--fluent-bg-glass);
+  min-width: 116px;
+  padding: 4px;
+  box-sizing: border-box;
   border: 1px solid var(--fluent-border);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  animation: quality-pop-in 0.14s ease;
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--fluent-bg-card), var(--fluent-bg-card)),
+    var(--combo-flyout-base, #2b2b2b);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  animation: combo-flyout-up-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes quality-pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.quality-pop[data-theme="light"] {
+  --combo-flyout-base: #f7f7f7;
 }
 
 .quality-pop-title {
-  padding: 4px 12px 6px;
+  padding: 6px 12px 4px;
   font-size: 11px;
   font-weight: 600;
   color: var(--fluent-text-secondary);
@@ -363,13 +359,23 @@ function formatDuration(seconds: number): string {
 }
 
 .quality-item {
-  padding: 7px 12px;
-  border-radius: 6px;
-  font-size: 13px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 11px 5px 12px;
+  border-radius: 5px;
   color: var(--fluent-text);
+  font-size: 13px;
+  line-height: 20px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease;
+  user-select: none;
+  transition: background-color 0.1s ease;
+}
+
+.quality-item + .quality-item {
+  margin-top: 2px;
 }
 
 .quality-item:hover {
@@ -377,8 +383,29 @@ function formatDuration(seconds: number): string {
 }
 
 .quality-item.active {
-  color: var(--fluent-accent);
+  color: var(--fluent-text);
   font-weight: 600;
+  background: var(--fluent-bg-active);
+}
+
+/* WinUI 选中指示条 */
+.quality-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  border-radius: 2px;
+  background: var(--fluent-accent);
+  transform: translateY(-50%);
+  transition: height 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+  opacity: 0;
+}
+
+.quality-item.active::before {
+  height: 16px;
+  opacity: 1;
 }
 
 .comment-btn {

@@ -20,7 +20,12 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
   const isLoading = ref(false)
   const currentTime = ref(0)
   const duration = ref(0)
-  const volume = ref(100)
+  const savedVolume = (() => {
+    const saved = localStorage.getItem('fp-volume')
+    const n = saved ? parseInt(saved, 10) : NaN
+    return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100
+  })()
+  const volume = ref(savedVolume)
   const playbackRate = ref(1)
   const coverUrl = ref<string | null>(null)
   // 播放列表（与歌单解耦的播放队列）
@@ -220,8 +225,10 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
   }
 
   function setVolume(value: number) {
-    volume.value = value
-    if (audioRef.value) audioRef.value.volume = value / 100
+    const v = Math.min(100, Math.max(0, Math.round(value)))
+    volume.value = v
+    if (audioRef.value) audioRef.value.volume = v / 100
+    localStorage.setItem('fp-volume', String(v))
   }
 
   function setPlaybackRate(rate: number) {
