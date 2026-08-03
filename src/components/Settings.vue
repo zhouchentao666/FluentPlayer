@@ -10,6 +10,7 @@ import {
   AUDIO_QUALITY_OPTIONS,
 } from '../composables/useConfig'
 import { useFontList } from '../composables/useFontList'
+import { useUpdater } from '../composables/useUpdater'
 import SettingCard from './settings/SettingCard.vue'
 import SettingRow from './settings/SettingRow.vue'
 import SegmentedControl from './settings/SegmentedControl.vue'
@@ -118,6 +119,12 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
   { value: '', label: '跟随系统' },
   ...fontOptions.value.map(f => ({ value: f, label: f })),
 ])
+
+// 手动检查更新（复用 App 共享的更新单例，带 toast 反馈）
+const { checking, checkForUpdates } = useUpdater()
+function manualCheckUpdate() {
+  checkForUpdates(true)
+}
 </script>
 
 <template>
@@ -304,6 +311,11 @@ const fontComboOptions = computed<ComboBoxOption[]>(() => [
             :model-value="settings.checkUpdateOnLaunch"
             @update:model-value="value => update({ checkUpdateOnLaunch: value })"
           />
+        </SettingRow>
+        <SettingRow label="检查更新" description="手动检查是否有新版本发布">
+          <button class="fluent-btn" :disabled="checking" @click="manualCheckUpdate">
+            {{ checking ? '检查中…' : '检查更新' }}
+          </button>
         </SettingRow>
         <SettingRow label="启用系统托盘" description="在任务栏托盘显示 fluentplayer 图标">
           <ToggleSwitch

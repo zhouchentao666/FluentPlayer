@@ -10,7 +10,6 @@ import {
   ShowMainWindow,
   CloseDesktopLyric,
   SetDesktopLyricIgnoreMouseEvents,
-  Version,
   onDragDrop,
 } from '@bridge/app'
 import TitleBar from './components/TitleBar.vue'
@@ -36,6 +35,7 @@ import { useWindowEffect } from './composables/useWindowEffect'
 import { useSession } from './composables/useSession'
 import { useDesktopLyricBridge } from './composables/useDesktopLyricBridge'
 import { useDesktopLyric } from './composables/useDesktopLyric'
+import { useUpdater } from './composables/useUpdater'
 import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
 import type { MusicInfo } from '@online/types/music'
@@ -45,44 +45,7 @@ import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
 
 // ---- 更新检查 ----
-const showUpdate = ref(false)
-const latestVersion = ref('')
-const appVersion = ref('0.0.0')
-const UPDATE_REPO = 'zhouchentao666/FluentPlayer'
-
-function normalizeVersion(v: string): string {
-  return v.replace(/^v/i, '').trim()
-}
-
-function compareVersion(a: string, b: string): number {
-  const pa = normalizeVersion(a).split('.').map((n) => parseInt(n, 10) || 0)
-  const pb = normalizeVersion(b).split('.').map((n) => parseInt(n, 10) || 0)
-  const len = Math.max(pa.length, pb.length)
-  for (let i = 0; i < len; i++) {
-    const x = pa[i] ?? 0
-    const y = pb[i] ?? 0
-    if (x !== y) return x - y
-  }
-  return 0
-}
-
-async function checkForUpdates() {
-  try {
-    const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json' },
-    })
-    if (!res.ok) return
-    const data = await res.json()
-    const tag = data?.tag_name
-    if (typeof tag !== 'string' || !tag) return
-    if (compareVersion(tag, appVersion.value) > 0) {
-      latestVersion.value = normalizeVersion(tag)
-      showUpdate.value = true
-    }
-  } catch {
-    // 网络错误时静默忽略
-  }
-}
+const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
 
 const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor' | 'online-comments'>('main')
 
@@ -505,7 +468,6 @@ watch(audio.currentSong, () => {
 
 onMounted(async () => {
   await load()
-  appVersion.value = await Version().catch(() => '0.0.0')
   localMetadata.value = settings.value.localMetadata
   if (settings.value.selectedPlaylistId && playlists.value.some(p => p.id === settings.value.selectedPlaylistId)) {
     selectPlaylist(settings.value.selectedPlaylistId)

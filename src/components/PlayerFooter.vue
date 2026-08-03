@@ -379,17 +379,17 @@ function formatDuration(seconds: number): string {
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  background: transparent;
+  transition: color 0.12s ease;
 }
 
 .quality-item:hover {
-  background: var(--fluent-bg-hover);
+  color: var(--fluent-accent);
 }
 
 .quality-item.active {
   color: var(--fluent-accent);
   font-weight: 600;
-  background: var(--fluent-bg-active);
 }
 
 /* WinUI 左侧 accent 选中指示条 */
