@@ -2,7 +2,8 @@ import { ref, computed, nextTick, onMounted, onUnmounted, watch, type Ref } from
 import { ReadCoverArt, AudioSrc } from '@bridge/app'
 import { type Song } from '../types'
 import { localMetadata } from './useLocalMetadata'
-import { resolveOnlineUrl, resolveOnlinePic, activeQuality } from '@online/player'
+import { resolveOnlineUrl, resolveOnlinePic, activeQuality, setPreferredQuality } from '@online/player'
+import type { Quality } from '@online/types/music'
 import { toast } from './useToast'
 
 interface AudioPlayerOptions {
@@ -116,6 +117,30 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     } finally {
       // 本地文件：play() 完成后即结束加载态（缓冲事件会继续由 canplay 处理）
       if (audioRef.value && audioRef.value.readyState >= 3) isLoading.value = false
+    }
+  }
+
+  // 切换音质：设置偏好并重新解析当前在线歌曲（保留进度续播）
+  async function changeQuality(q: Quality) {
+    setPreferredQuality(q)
+    const song = currentSong.value
+    if (!song?.online || !audioRef.value) return
+    const keepTime = audioRef.value.currentTime
+    const wasPlaying = isPlaying.value
+    try {
+      const { url, quality } = await resolveOnlineUrl(song.online)
+      if (currentSong.value?.id !== song.id || !audioRef.value) return
+      activeQuality.value = quality
+      audioRef.value.src = url
+      audioRef.value.load()
+      audioRef.value.currentTime = keepTime
+      audioRef.value.playbackRate = playbackRate.value
+      if (wasPlaying) {
+        await audioRef.value.play()
+        isPlaying.value = true
+      }
+    } catch (err) {
+      toast(`切换音质失败：${(err as Error).message || ''}`, 'error')
     }
   }
 
@@ -258,5 +283,6 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     seek,
     setVolume,
     setPlaybackRate,
+    changeQuality,
   }
 }

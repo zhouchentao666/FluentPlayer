@@ -38,6 +38,7 @@ import { useDesktopLyricBridge } from './composables/useDesktopLyricBridge'
 import { useDesktopLyric } from './composables/useDesktopLyric'
 import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
+import type { MusicInfo } from '@online/types/music'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import { setPreferredQuality, setDownloadQuality } from './online/player'
@@ -407,8 +408,10 @@ function togglePlayerDetail() {
   showPlayerDetail.value = !showPlayerDetail.value
 }
 
-// 点击全屏播放器的「评论」：关闭全屏播放器并跳转到评论界面
-function openComments() {
+// 打开评论界面：可选传入指定歌曲（来自列表/播放栏），否则用当前播放的在线歌曲
+const commentTarget = ref<MusicInfo | null>(null)
+function openComments(m?: MusicInfo) {
+  commentTarget.value = m ?? audio.currentSong.value?.online ?? null
   showPlayerDetail.value = false
   view.value = 'online-comments'
 }
@@ -616,6 +619,7 @@ onUnmounted(() => {
             @play-songs="(songs, index) => audio.playSongs(songs, index)"
             @add-to-queue="audio.addToQueue"
             @add-to-playlist="addSongs"
+            @comment="openComments"
             @open-detail="openOnlineItem"
           />
           <OnlineDetail
@@ -634,6 +638,7 @@ onUnmounted(() => {
             @add-all="(pid, songs) => addSongs(pid, songs)"
             @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
             @toggle-pin="onTogglePinOnline"
+            @comment="(song) => song.online && openComments(song.online)"
             @back="view = 'online'"
           />
           <SponsorView
@@ -644,7 +649,7 @@ onUnmounted(() => {
           <CommentView
             v-else-if="view === 'online-comments'"
             :key="'online-comments'"
-            :song="audio.currentSong.value?.online ?? null"
+            :song="commentTarget"
             @close="view = 'online'"
           />
         </Transition>
@@ -682,6 +687,8 @@ onUnmounted(() => {
       @cycle-mode="cyclePlayMode"
       @toggle-queue="toggleQueue"
       @toggle-desktop-lyric="toggleDesktopLyric"
+      @comment="openComments"
+      @change-quality="(q) => audio.changeQuality(q)"
     />
 
     <PlayerDetail
@@ -697,7 +704,6 @@ onUnmounted(() => {
       :cover-transition="settings.coverTransition"
       @close="togglePlayerDetail"
       @seek="audio.seek"
-      @open-comments="openComments"
     />
     <PlayQueue
       :show="showQueue"

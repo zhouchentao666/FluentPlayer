@@ -1,35 +1,42 @@
-import { fetch as tauriHttpFetch } from "@tauri-apps/plugin-http"
-
-// Are we running inside the Tauri webview (which injects the IPC bridge)?
-// The Claude Preview / plain browser has no bridge, so tauriFetch would throw
-// "Cannot read properties of undefined (reading 'invoke')".
-const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-
-// Headers the browser forbids JS from setting on fetch() — relay them to the
-// dev proxy via `x-pxy-*` so it can restore them server-side.
-const RELAY = new Set(["user-agent", "referer", "origin", "cookie", "host"])
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 /**
- * Environment-aware HTTP. In the Tauri window it uses the native http plugin
- * (bypasses CORS). In the browser/preview it routes through the Vite dev proxy
- * (see vite.config.ts) so built-in search / charts / lyric still work there.
+ * Tauri 的 plugin-http 响应体是 ReadableStream，调用方若对某些接口（如 QQ 评论）
+ * 直接 `await res.json()` 偶发 `Failed to execute 'close' on
+ * 'ReadableStreamDefaultController': Unexpected end of JSON input`——这是 Tauri
+ * 在 body 流被重复 close 时的已知问题。
+ *
+ * 这里对 Tauri 返回的 Response 做一次包装：覆写 `json()`，改为先 `text()` 再解析，
+ * 既避开流二次 close，又对空/损坏响应给出安全的兜底，而不是直接抛错。
  */
-export async function httpFetch(input: string, init?: RequestInit): Promise<Response> {
-  if (isTauri) {
-    return tauriHttpFetch(input, init) as unknown as Promise<Response>
-  }
-
-  const headers = new Headers((init?.headers as HeadersInit | undefined) ?? undefined)
-  const relayed = new Headers()
-  headers.forEach((value, key) => {
-    if (RELAY.has(key.toLowerCase())) relayed.set(`x-pxy-${key}`, value)
-    else relayed.set(key, value)
+function safeResponse(res: Response): Response {
+  return new Proxy(res, {
+    get(target, prop, receiver) {
+      if (prop === 'json') {
+        return async () => {
+          try {
+            const text = await target.text()
+            if (!text) return {}
+            return JSON.parse(text)
+          } catch {
+            return {}
+          }
+        }
+      }
+      const value = Reflect.get(target, prop, receiver)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
   })
+}
 
-  return fetch(`/__proxy?target=${encodeURIComponent(input)}`, {
-    method: init?.method ?? "GET",
-    headers: relayed,
-    body: init?.body as BodyInit | null | undefined,
-    signal: init?.signal ?? undefined,
-  })
+export async function httpFetch(
+  url: string,
+  options: RequestInit & { timeout?: number; responseType?: 'json' | 'text' } = {},
+): Promise<Response> {
+  const { responseType, ...rest } = options
+  const res = await tauriFetch(url, {
+    ...rest,
+    responseType: responseType === 'text' ? 'Text' : undefined,
+  } as RequestInit)
+  return safeResponse(res)
 }

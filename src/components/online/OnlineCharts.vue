@@ -10,6 +10,7 @@ const emit = defineEmits<{
   (e: 'queue', m: MusicInfo): void
   (e: 'add-playlist', m: MusicInfo): void
   (e: 'download', m: MusicInfo): void
+  (e: 'comment', m: MusicInfo): void
   (e: 'add-all', musics: MusicInfo[]): void
   (e: 'download-all', musics: MusicInfo[]): void
 }>()
@@ -118,6 +119,7 @@ function onPlay(m: MusicInfo) {
             @add-queue="emit('queue', $event)"
             @add-playlist="emit('add-playlist', $event)"
             @download="emit('download', $event)"
+            @comment="emit('comment', $event)"
           />
         </div>
       </section>

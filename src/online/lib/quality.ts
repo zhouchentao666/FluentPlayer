@@ -41,3 +41,17 @@ export function indexQualitySizes(qualitys: MusicQuality[]): MusicInfoMeta["_qua
   for (const q of qualitys) _qualitys[q.type] = { size: q.size }
   return _qualitys
 }
+
+// UI 展示用：各平台支持的音质档位（从好到差）。
+const SOURCE_QUALITY_LEVELS: Record<string, Quality[]> = {
+  wy: ["flac", "320k", "128k"],
+  tx: ["flac", "320k", "128k"],
+  kg: ["320k", "128k"],
+  kw: ["320k", "128k"],
+  mg: ["320k", "128k"],
+}
+
+/** 返回某在线平台可选的音质档位列表（供播放栏音质菜单使用）。 */
+export function qualityLevelsFor(source: string): Quality[] {
+  return SOURCE_QUALITY_LEVELS[source] ?? ["320k", "128k"]
+}

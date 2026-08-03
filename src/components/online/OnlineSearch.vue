@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'queue', m: MusicInfo): void
   (e: 'add-playlist', m: MusicInfo): void
   (e: 'download', m: MusicInfo): void
+  (e: 'comment', m: MusicInfo): void
   (e: 'open', item: Playlist | Album, kind: 'playlist' | 'album'): void
 }>()
 
@@ -266,6 +267,7 @@ function onCardOpen(item: Playlist | Album) {
             @add-queue="emit('queue', $event)"
             @add-playlist="emit('add-playlist', $event)"
             @download="emit('download', $event)"
+            @comment="emit('comment', $event)"
           />
         </div>
 

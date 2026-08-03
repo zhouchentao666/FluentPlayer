@@ -17,7 +17,6 @@ const emit = defineEmits<{
   closeApp: []
   showTopChrome: []
   topChromeLeave: []
-  openComments: []
 }>()
 
 const handleClose = () => emit('close')
@@ -68,13 +67,7 @@ const topChromeLeave = () => emit('topChromeLeave')
             <path d="M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76l2 4.24H7l2-4.24Z" />
           </svg>
         </button>
-        <button title="评论" class="win-btn" @click="emit('openComments')">
-          <svg xmlns="http://www.w3.org/2000/svg" class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-          </svg>
-        </button>
       </div>
-
       <div class="chrome-right" @dblclick.stop>
         <button class="win-btn" :title="props.isFullscreen ? '退出全屏 (F11)' : '全屏 (F11)'" @click="toggleFullscreen">
           <svg v-if="props.isFullscreen" xmlns="http://www.w3.org/2000/svg" class="win-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

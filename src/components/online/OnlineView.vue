@@ -31,6 +31,7 @@ const emit = defineEmits<{
   (e: 'add-to-playlist', playlistId: string, songs: Song[]): void
   (e: 'open-detail', target: OpenTarget): void
   (e: 'update:tab', tab: OnlineTab): void
+  (e: 'comment', m: MusicInfo): void
 }>()
 
 const settings = inject<Ref<AppSettings>>('settings')
@@ -215,6 +216,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           @queue="onQueue"
           @add-playlist="onAddPlaylist"
           @download="onDownload"
+          @comment="(m) => emit('comment', m)"
           @open="onOpen"
         />
         <OnlineHotPlaylists v-else-if="tab === 'playlists'" key="playlists" @open="(item) => onOpen(item, 'playlist')" />
@@ -228,6 +230,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           @download="onDownload"
           @add-all="onAddAll"
           @download-all="onDownloadAll"
+          @comment="(m) => emit('comment', m)"
         />
       </Transition>
     </div>

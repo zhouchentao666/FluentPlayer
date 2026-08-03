@@ -160,7 +160,7 @@ function txFormatTime(time: unknown): number | null {
 async function getTxComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
-  const res = await tauriFetch("http://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg", {
+  const res = await tauriFetch("https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg", {
     method: "POST",
     headers: {
       "User-Agent": "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)",

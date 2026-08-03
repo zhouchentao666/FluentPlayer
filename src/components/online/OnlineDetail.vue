@@ -26,6 +26,7 @@ const emit = defineEmits<{
   (e: 'queue', song: Song): void
   (e: 'add-playlist', playlistId: string, song: Song): void
   (e: 'download', song: Song): void
+  (e: 'comment', song: Song): void
   (e: 'add-all', playlistId: string, songs: Song[]): void
   (e: 'download-all', songs: Song[]): void
   (e: 'toggle-pin', item: PinnedOnlineItem): void
@@ -189,6 +190,7 @@ onUnmounted(stopAuto)
         @play="onPlaySong"
         @add-to-queue="(s) => emit('queue', s)"
         @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
+        @comment="(s) => emit('comment', s)"
       />
 
       <!-- 收藏整张歌单：选择本地歌单 -->

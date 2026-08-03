@@ -25,7 +25,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   seek: [time: number]
-  openComments: []
 }>()
 
 const {
@@ -120,7 +119,6 @@ watch(() => props.show, (visible) => {
         @close-app="closeApp"
         @show-top-chrome="showTopChrome"
         @top-chrome-leave="handleTopChromeLeave"
-        @open-comments="emit('openComments')"
       />
 
       <PlayerDetailLeft

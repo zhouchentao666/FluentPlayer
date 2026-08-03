@@ -1,13 +1,16 @@
 <script lang="ts" setup>
 import { type Song } from '../types'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import ProgressBar from './player/ProgressBar.vue'
 import SongInfo from './player/SongInfo.vue'
 import PlayerControls, { type PlayMode } from './player/PlayerControls.vue'
 import VolumeControl from './player/VolumeControl.vue'
 import PlaybackRateControl from './player/PlaybackRateControl.vue'
+import { activeQuality, preferredQuality, setPreferredQuality } from '@online/player'
+import { qualityLevelsFor, QUALITY_SHORT } from '@online/lib/quality'
+import type { Quality } from '@online/types/music'
 
-defineProps<{
+const props = defineProps<{
   currentSong: Song | null
   coverUrl: string | null
   isPlaying: boolean
@@ -35,7 +38,44 @@ const emit = defineEmits<{
   (e: 'cycle-mode'): void
   (e: 'toggle-queue'): void
   (e: 'toggle-desktop-lyric'): void
+  (e: 'comment'): void
+  (e: 'change-quality', q: Quality): void
 }>()
+
+// 在线音乐才显示音质 / 评论
+const isOnline = computed(() => !!props.currentSong?.online)
+
+const qualityOpen = ref(false)
+const qualityLevels = computed<Quality[]>(() => {
+  const src = props.currentSong?.online?.source
+  return src ? qualityLevelsFor(src) : []
+})
+const qualityShort = computed(() => {
+  const q = activeQuality.value ?? '128k'
+  return QUALITY_SHORT[q as Quality] || q
+})
+
+function selectQuality(q: Quality) {
+  emit('change-quality', q)
+  qualityOpen.value = false
+}
+function closeQuality() {
+  qualityOpen.value = false
+}
+
+// 点击外部关闭音质菜单
+const vClickOutside = {
+  mounted(el: HTMLElement, binding: { value: () => void }) {
+    const handler = (e: MouseEvent) => {
+      if (!el.contains(e.target as Node)) binding.value()
+    }
+    ;(el as unknown as { _onClick: (e: MouseEvent) => void })._onClick = handler
+    setTimeout(() => document.addEventListener('click', handler, true))
+  },
+  unmounted(el: HTMLElement) {
+    document.removeEventListener('click', (el as unknown as { _onClick: (e: MouseEvent) => void })._onClick, true)
+  },
+}
 
 function formatDuration(seconds: number): string {
   if (!seconds || seconds < 0) return '0:00'
@@ -82,6 +122,42 @@ function formatDuration(seconds: number): string {
 
       <div class="section right" :class="{ faded: immersive && !isHovered }">
         <span class="time-label">{{ formatDuration(currentTime) }} / {{ formatDuration(duration || 0) }}</span>
+
+        <!-- 音质切换（仅在线音乐） -->
+        <div v-if="isOnline" class="quality-wrap" v-click-outside="closeQuality">
+          <button class="side-btn quality-btn" title="音质" @click="qualityOpen = !qualityOpen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12h3l2-7 4 14 3-9 2 4h4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="quality-tag">{{ qualityShort }}</span>
+          </button>
+          <div v-if="qualityOpen" class="quality-pop">
+            <div class="quality-pop-title">音质</div>
+            <button
+              v-for="q in qualityLevels"
+              :key="q"
+              class="quality-item"
+              :class="{ active: q === activeQuality }"
+              @click="selectQuality(q)"
+            >
+              {{ QUALITY_SHORT[q] || q }}
+              <span v-if="q === activeQuality" class="quality-check">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 评论（仅在线音乐） -->
+        <button
+          v-if="isOnline"
+          class="side-btn comment-btn"
+          title="评论"
+          @click="emit('comment')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          </svg>
+        </button>
+
         <button
           class="side-btn lyric-btn"
           :class="{ active: desktopLyricEnabled }"
@@ -240,16 +316,50 @@ function formatDuration(seconds: number): string {
   border-color: rgba(255, 255, 255, 0.6);
 }
 
+.quality-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .quality-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
   z-index: 200;
-  min-width: 96px;
+  min-width: 104px;
   padding: 6px;
   background: var(--fluent-bg-glass);
   border: 1px solid var(--fluent-border);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
+  animation: quality-pop-in 0.14s ease;
+}
+
+@keyframes quality-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quality-pop-title {
+  padding: 4px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fluent-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.quality-tag {
+  margin-left: 4px;
+  font-size: 11px;
 }
 
 .quality-item {
