@@ -54,6 +54,9 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
   const _qualitys = indexQualitySizes(qualitys)
 
   const duration = parseInt(raw.DURATION)
+  const picFromSearch = raw.web_albumpic_short
+    ? `https://img1.kuwo.cn/star/albumcover/${raw.web_albumpic_short}`
+    : null
   return {
     id: `kw_${songId}`,
     name: decodeKwName(raw.SONGNAME),
@@ -64,9 +67,10 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
     meta: {
       songId,
       albumId: raw.ALBUMID || "",
-      picUrl: raw.web_albumpic_short
-        ? `https://img1.kuwo.cn/star/albumcover/${raw.web_albumpic_short}`
-        : null,
+      picUrl:
+        picFromSearch ??
+        // 搜索接口常缺封面：回退到 artistpicserver 的 rid 接口（浏览器可跟随重定向直接出图）。
+        `http://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=500&size=500&rid=${songId}`,
       qualitys,
       _qualitys,
     },

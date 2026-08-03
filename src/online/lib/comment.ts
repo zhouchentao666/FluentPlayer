@@ -82,11 +82,11 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const threadId = `R_SO_4_${songId}`
   const body = weapi(
     {
-      cursor: String(Date.now()),
-      offset: String((page - 1) * limit),
-      orderType: "1",
-      pageNo: String(page),
-      pageSize: String(limit),
+      cursor: Date.now(),
+      offset: 0,
+      orderType: 1,
+      pageNo: page,
+      pageSize: limit,
       rid: threadId,
       threadId,
     },
@@ -161,9 +161,38 @@ function txFormatTime(time: unknown): number | null {
   return parseInt(s + "000")
 }
 
+// QQ 评论接口 topid 需要数字 songId；meta.songId 实际存的是 songmid（字母数字 mid）。
+// 当仅有 songmid 时，用 musicu.fcg 解析出数字 songId（参考 Mio-Music tx/comment.rs）。
+async function getTxSongId(song: MusicInfo): Promise<string> {
+  const s = song.meta.songId
+  if (s && /^\d+$/.test(s)) return s
+  const songmid = song.meta.strMediaMid || s
+  if (!songmid) throw new Error("缺少歌曲 mid")
+  const body = {
+    comm: { ct: "19", cv: "1859", uin: "0" },
+    req: {
+      module: "music.pf_song_detail_svr",
+      method: "get_song_detail_yqq",
+      param: { song_type: 0, song_mid: songmid },
+    },
+  }
+  const res = await tauriFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
+    method: "POST",
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error("获取歌曲 ID 失败")
+  const data = (await res.json()) as any
+  const id = data?.req?.data?.track_info?.id
+  if (!id) throw new Error("解析歌曲 ID 失败")
+  return String(id)
+}
+
 async function getTxComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
-  const songId = song.meta.songId
-  if (!songId) throw new Error("缺少歌曲 ID")
+  const songId = await getTxSongId(song)
   const res = await tauriFetch("https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg", {
     method: "POST",
     headers: {
@@ -217,9 +246,9 @@ async function getTxComments(song: MusicInfo, page: number, limit: number): Prom
 
 // --- Kugou (kg) -----------------------------------------------------------
 
-const KG_WEB_KEY = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt"
+// 酷狗评论接口签名：Mio-Music 使用 android key（与 web key 不同）。
+const KG_WEB_KEY = "OIlwieks28dk2k092lksi2UIkp"
 
-// 酷狗评论接口签名（与 CeruMusic kg/util.js signatureParams 一致）。
 function kgSignature(params: string): string {
   const paramList = params.split("&").sort()
   const signParams = `${KG_WEB_KEY}${paramList.join("")}${KG_WEB_KEY}`
@@ -235,9 +264,9 @@ function kgFormatTime(ts: number | string): number | null {
 async function getKgComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
   const hash = song.meta.hash
   if (!hash) throw new Error("缺少歌曲 hash")
-  const timestamp = Date.now()
-  const params = `dfid=0&mid=16249512204336365674023395779019&clienttime=${timestamp}&uuid=0&extdata=${hash}&appid=1005&code=fc4be23b4e972707f36b8a828a93ba8a&schash=${hash}&clientver=11409&p=${page}&clienttoken=0&pagesize=${limit}&ver=10&kugouid=0`
-  const url = `https://m.comment.service.kugou.com/r/v1/rank/newest?${params}&signature=${kgSignature(params)}`
+  const timestamp = Math.floor(Date.now() / 1000)
+  const params = `dfid=0&mid=16249512204336365674023395779019&clienttime=${timestamp}&uuid=0&extdata=${hash}&appid=1005&code=fc4be23b4e972707f36b8a828a93ba8a&schash=${hash}&clientver=11409&p=${page}&clienttoken=&pagesize=${limit}&ver=10&kugouid=0`
+  const url = `http://m.comment.service.kugou.com/r/v1/rank/newest?${params}&signature=${kgSignature(params)}`
   const res = await tauriFetch(url, {
     headers: {
       "User-Agent":

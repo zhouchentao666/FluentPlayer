@@ -326,22 +326,28 @@ function formatDuration(seconds: number): string {
   right: 0;
   bottom: calc(100% + 8px);
   z-index: 200;
-  min-width: 116px;
+  min-width: 120px;
   padding: 4px;
   box-sizing: border-box;
   border: 1px solid var(--fluent-border);
   border-radius: 8px;
-  background:
-    linear-gradient(var(--fluent-bg-card), var(--fluent-bg-card)),
-    var(--combo-flyout-base, #2b2b2b);
+  background: var(--fluent-bg-card);
   backdrop-filter: blur(30px) saturate(160%);
   -webkit-backdrop-filter: blur(30px) saturate(160%);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  animation: combo-flyout-up-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  transform-origin: bottom right;
+  animation: quality-pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.quality-pop[data-theme="light"] {
-  --combo-flyout-base: #f7f7f7;
+@keyframes quality-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .quality-pop-title {
@@ -356,12 +362,14 @@ function formatDuration(seconds: number): string {
 .quality-tag {
   margin-left: 4px;
   font-size: 11px;
+  letter-spacing: 0.2px;
 }
 
 .quality-item {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 32px;
   padding: 5px 11px 5px 12px;
   border-radius: 5px;
@@ -371,11 +379,7 @@ function formatDuration(seconds: number): string {
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
-  transition: background-color 0.1s ease;
-}
-
-.quality-item + .quality-item {
-  margin-top: 2px;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .quality-item:hover {
@@ -383,12 +387,12 @@ function formatDuration(seconds: number): string {
 }
 
 .quality-item.active {
-  color: var(--fluent-text);
+  color: var(--fluent-accent);
   font-weight: 600;
   background: var(--fluent-bg-active);
 }
 
-/* WinUI 选中指示条 */
+/* WinUI 左侧 accent 选中指示条 */
 .quality-item::before {
   content: "";
   position: absolute;
@@ -399,13 +403,19 @@ function formatDuration(seconds: number): string {
   border-radius: 2px;
   background: var(--fluent-accent);
   transform: translateY(-50%);
-  transition: height 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+  transition: height 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s ease;
   opacity: 0;
 }
 
 .quality-item.active::before {
   height: 16px;
   opacity: 1;
+}
+
+.quality-check {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--fluent-accent);
 }
 
 .comment-btn {
