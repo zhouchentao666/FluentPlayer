@@ -6,7 +6,8 @@ import SongInfo from './player/SongInfo.vue'
 import PlayerControls, { type PlayMode } from './player/PlayerControls.vue'
 import VolumeControl from './player/VolumeControl.vue'
 import PlaybackRateControl from './player/PlaybackRateControl.vue'
-import { activeQuality, preferredQuality, setPreferredQuality } from '@online/player'
+import ComboBox from './settings/ComboBox.vue'
+import { activeQuality } from '@online/player'
 import { qualityLevelsFor, QUALITY_SHORT } from '@online/lib/quality'
 import type { Quality } from '@online/types/music'
 
@@ -45,36 +46,17 @@ const emit = defineEmits<{
 // 在线音乐才显示音质 / 评论
 const isOnline = computed(() => !!props.currentSong?.online)
 
-const qualityOpen = ref(false)
 const qualityLevels = computed<Quality[]>(() => {
   const src = props.currentSong?.online?.source
   return src ? qualityLevelsFor(src) : []
 })
-const qualityShort = computed(() => {
-  const q = activeQuality.value ?? '128k'
-  return QUALITY_SHORT[q as Quality] || q
-})
 
-function selectQuality(q: Quality) {
-  emit('change-quality', q)
-  qualityOpen.value = false
-}
-function closeQuality() {
-  qualityOpen.value = false
-}
+const qualityOptions = computed(() =>
+  qualityLevels.value.map(q => ({ value: q, label: QUALITY_SHORT[q] || q }))
+)
 
-// 点击外部关闭音质菜单
-const vClickOutside = {
-  mounted(el: HTMLElement, binding: { value: () => void }) {
-    const handler = (e: MouseEvent) => {
-      if (!el.contains(e.target as Node)) binding.value()
-    }
-    ;(el as unknown as { _onClick: (e: MouseEvent) => void })._onClick = handler
-    setTimeout(() => document.addEventListener('click', handler, true))
-  },
-  unmounted(el: HTMLElement) {
-    document.removeEventListener('click', (el as unknown as { _onClick: (e: MouseEvent) => void })._onClick, true)
-  },
+function selectQuality(q: string) {
+  emit('change-quality', q as Quality)
 }
 
 function formatDuration(seconds: number): string {
@@ -124,26 +106,14 @@ function formatDuration(seconds: number): string {
         <span class="time-label">{{ formatDuration(currentTime) }} / {{ formatDuration(duration || 0) }}</span>
 
         <!-- 音质切换（仅在线音乐） -->
-        <div v-if="isOnline" class="quality-wrap" v-click-outside="closeQuality">
-          <button class="side-btn quality-btn" title="音质" @click="qualityOpen = !qualityOpen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12h3l2-7 4 14 3-9 2 4h4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="quality-tag">{{ qualityShort }}</span>
-          </button>
-          <div v-if="qualityOpen" class="quality-pop">
-            <div class="quality-pop-title">音质</div>
-            <button
-              v-for="q in qualityLevels"
-              :key="q"
-              class="quality-item"
-              :class="{ active: q === activeQuality }"
-              @click="selectQuality(q)"
-            >
-              {{ QUALITY_SHORT[q] || q }}
-              <span v-if="q === activeQuality" class="quality-check">✓</span>
-            </button>
-          </div>
+        <div v-if="isOnline" class="quality-wrap">
+          <ComboBox
+            width="80px"
+            aria-label="音质"
+            :options="qualityOptions"
+            :model-value="activeQuality ?? '128k'"
+            @update:model-value="selectQuality"
+          />
         </div>
 
         <!-- 评论（仅在线音乐） -->
@@ -276,126 +246,22 @@ function formatDuration(seconds: number): string {
   height: 22px;
 }
 
-.quality-btn {
-  min-width: 40px;
-  height: 28px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--fluent-border);
-  border-radius: 14px;
-  background: transparent;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-
-.quality-btn:hover {
-  background: var(--fluent-bg-hover);
-}
-
-.quality-btn.active {
-  color: var(--fluent-accent);
-  border-color: var(--fluent-accent);
-}
-
-.player-footer.detail-mode .quality-btn {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.player-footer.detail-mode .quality-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.player-footer.detail-mode .quality-btn.active {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.6);
-}
-
 .quality-wrap {
-  position: relative;
   display: inline-flex;
-}
-
-.quality-pop {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 200;
-  min-width: 120px;
-  padding: 4px;
-  box-sizing: border-box;
-  border: 1px solid var(--fluent-border);
-  border-radius: 8px;
-  background: var(--fluent-bg-card);
-  backdrop-filter: blur(30px) saturate(160%);
-  -webkit-backdrop-filter: blur(30px) saturate(160%);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  transform-origin: bottom right;
-  animation: quality-pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes quality-pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.94) translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.quality-pop-title {
-  padding: 6px 12px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--fluent-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.quality-tag {
-  margin-left: 4px;
-  font-size: 11px;
-  letter-spacing: 0.2px;
-}
-
-.quality-item {
-  position: relative;
-  display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 5px 11px 5px 12px;
-  border-radius: 5px;
-  color: var(--fluent-text);
-  font-size: 13px;
-  line-height: 20px;
-  cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  background: transparent;
-  transition: color 0.12s ease;
 }
 
-.quality-item:hover {
-  color: var(--fluent-accent);
-}
-
-.quality-item.active {
-  color: var(--fluent-accent);
-  font-weight: 600;
-}
-
-.quality-check {
-  margin-left: auto;
+/* 播放栏中的 ComboBox 样式微调 */
+.quality-wrap :deep(.win-combo) {
+  min-height: 28px;
+  padding: 3px 8px 3px 10px;
   font-size: 12px;
-  color: var(--fluent-accent);
+  font-weight: 600;
+  border-radius: 14px;
+}
+
+.quality-wrap :deep(.win-combo-text) {
+  font-variant-numeric: tabular-nums;
 }
 
 .comment-btn {

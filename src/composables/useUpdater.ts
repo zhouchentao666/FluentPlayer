@@ -8,9 +8,19 @@ function normalizeVersion(v: string): string {
   return v.replace(/^v/i, '').trim()
 }
 
+/**
+ * 从字符串中提取版本号（支持 1.0.1、v1.0.1、1.0.1(test)、1.0.1（test）等格式）
+ */
+function extractVersion(v: string): string {
+  const normalized = normalizeVersion(v)
+  // 匹配 x.x.x 格式的版本号，后面可跟括号内的任意内容
+  const match = normalized.match(/^(\d+(?:\.\d+)*)/)
+  return match ? match[1] : normalized
+}
+
 function compareVersion(a: string, b: string): number {
-  const pa = normalizeVersion(a).split('.').map((n) => parseInt(n, 10) || 0)
-  const pb = normalizeVersion(b).split('.').map((n) => parseInt(n, 10) || 0)
+  const pa = extractVersion(a).split('.').map((n) => parseInt(n, 10) || 0)
+  const pb = extractVersion(b).split('.').map((n) => parseInt(n, 10) || 0)
   const len = Math.max(pa.length, pb.length)
   for (let i = 0; i < len; i++) {
     const x = pa[i] ?? 0
@@ -64,13 +74,17 @@ export function useUpdater() {
         return
       }
       const data = await res.json()
-      const tag = data?.tag_name
+      // 优先使用 tag_name，如果没有则尝试 name 字段
+      let tag = data?.tag_name
+      if (typeof tag !== 'string' || !tag) {
+        tag = data?.name
+      }
       if (typeof tag !== 'string' || !tag) {
         if (showToast) toast('检查更新失败：接口返回异常', 'warning')
         return
       }
       if (compareVersion(tag, appVersion.value) > 0) {
-        latestVersion.value = normalizeVersion(tag)
+        latestVersion.value = extractVersion(tag)
         showUpdate.value = true
         if (showToast) toast(`发现新版本 v${latestVersion.value}`, 'success')
       } else if (showToast) {
