@@ -22,11 +22,14 @@ function compareVersion(a: string, b: string): number {
 
 const appVersionSingleton = ref<string>('0.0.0')
 
+// 单例状态：App.vue（渲染更新弹窗）与 Settings.vue（触发手动检查）共享同一份，
+// 避免非单例导致的状态分裂、手动检查与弹窗行为不一致。
+const latestVersion = ref('')
+const showUpdate = ref(false)
+const checking = ref(false)
+
 export function useUpdater() {
   const appVersion = appVersionSingleton
-  const latestVersion = ref('')
-  const showUpdate = ref(false)
-  const checking = ref(false)
 
   async function ensureAppVersion() {
     if (!appVersion.value || appVersion.value === '0.0.0') {

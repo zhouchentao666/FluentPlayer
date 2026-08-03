@@ -392,26 +392,6 @@ function formatDuration(seconds: number): string {
   font-weight: 600;
 }
 
-/* WinUI 左侧 accent 选中指示条 */
-.quality-item::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 0;
-  border-radius: 2px;
-  background: var(--fluent-accent);
-  transform: translateY(-50%);
-  transition: height 0.16s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.16s ease;
-  opacity: 0;
-}
-
-.quality-item.active::before {
-  height: 16px;
-  opacity: 1;
-}
-
 .quality-check {
   margin-left: auto;
   font-size: 12px;
