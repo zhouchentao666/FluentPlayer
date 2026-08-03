@@ -23,7 +23,10 @@ function safeResponse(res: Response): Response {
           }
         }
       }
-      const value = Reflect.get(target, prop, receiver)
+      // 关键：传给 Reflect.get 的 receiver 必须是原始 target，否则访问器属性
+      // （url/status/headers/body 等）内部 this 仍指向 Proxy，会引发
+      // "Illegal invocation" 或无限递归。
+      const value = Reflect.get(target, prop, target)
       return typeof value === 'function' ? value.bind(target) : value
     },
   })

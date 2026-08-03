@@ -1,6 +1,10 @@
 import { httpFetch as tauriFetch } from "@online/lib/http"
 import { weapi, randomSecret } from "@online/lib/platforms/wy/weapi"
+import * as md5Lib from "js-md5"
 import type { MusicInfo } from "@online/types/music"
+
+// js-md5 在不同版本下 default 导出位置不同，统一取函数。
+const md5 = ((md5Lib as any).default ?? md5Lib) as (str: string) => string
 
 // Online comments (NetEase "wy" + QQ "tx"). Both endpoints are public and need
 // no login. The result is normalised into a shared CommentItem shape so the UI
@@ -211,11 +215,133 @@ async function getTxComments(song: MusicInfo, page: number, limit: number): Prom
   return { source: "tx", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
 }
 
+// --- Kugou (kg) -----------------------------------------------------------
+
+const KG_WEB_KEY = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt"
+
+// 酷狗评论接口签名（与 CeruMusic kg/util.js signatureParams 一致）。
+function kgSignature(params: string): string {
+  const paramList = params.split("&").sort()
+  const signParams = `${KG_WEB_KEY}${paramList.join("")}${KG_WEB_KEY}`
+  return md5(signParams)
+}
+
+function kgFormatTime(ts: number | string): number | null {
+  const t = typeof ts === "number" ? ts : parseInt(ts)
+  if (!Number.isFinite(t)) return null
+  return t < 1e12 ? t * 1000 : t
+}
+
+async function getKgComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+  const hash = song.meta.hash
+  if (!hash) throw new Error("缺少歌曲 hash")
+  const timestamp = Date.now()
+  const params = `appid=1005&clienttime=${timestamp}&clienttoken=0&clientver=11409&code=fc4be23b4e972707f36b8a828a93ba8a&dfid=0&extdata=${hash}&kugouid=0&mid=16249512204336365674023395779019&mixsongid=&p=${page}&pagesize=${limit}&uuid=0&ver=10`
+  const url = `https://m.comment.service.kugou.com/r/v1/rank/newest?${params}&signature=${kgSignature(params)}`
+  const res = await tauriFetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.24",
+    },
+  })
+  if (!res.ok) throw new Error("获取评论失败")
+  const data = (await res.json()) as { err_code?: number; count?: number; list?: any[] }
+  if (data.err_code !== 0) throw new Error("获取评论失败")
+  const total = data.count ?? 0
+  const comments: CommentItem[] = (data.list ?? []).map((item) => ({
+    id: String(item.id),
+    text: item.atlist ? replaceAt(item.content, item.atlist) : item.content || "",
+    userName: item.user_name || "",
+    avatar: item.user_pic || null,
+    timeStr: item.addtime ? dateFormat(kgFormatTime(item.addtime) ?? 0) : "",
+    likedCount: item.like?.likenum ?? 0,
+    location: item.location || null,
+    reply: [],
+  }))
+  return { source: "kg", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+}
+
+function replaceAt(raw: string, atList: { id: string; name: string }[]): string {
+  let s = raw || ""
+  for (const at of atList) s = s.split(`[at=${at.id}]`).join(`@${at.name} `)
+  return s
+}
+
+// --- Kuwo (kw) ------------------------------------------------------------
+
+async function getKwComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+  const songmid = song.meta.songId
+  if (!songmid) throw new Error("缺少歌曲 ID")
+  const url = `https://ncomment.kuwo.cn/com.s?f=web&type=get_comment&aapiver=1&prod=kwplayer_ar_10.5.2.0&digest=15&sid=${songmid}&start=${limit * (page - 1)}&msgflag=1&count=${limit}&newver=3&uid=0`
+  const res = await tauriFetch(url, {
+    headers: { "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 9;)" },
+  })
+  if (!res.ok) throw new Error("获取评论失败")
+  const data = (await res.json()) as { code?: string; comments_counts?: number; comments?: any[] }
+  if (data.code !== "200") throw new Error("获取评论失败")
+  const total = data.comments_counts ?? 0
+  const comments: CommentItem[] = (data.comments ?? []).map((item) => ({
+    id: String(item.id),
+    text: item.msg || "",
+    userName: item.u_name || "",
+    avatar: item.u_pic || null,
+    timeStr: item.time ? dateFormat(Number(item.time) * 1000) : "",
+    likedCount: item.like_num ?? 0,
+    location: null,
+    reply: (item.child_comments ?? []).map((c: any) => ({
+      id: String(c.id),
+      text: c.msg || "",
+      userName: c.u_name || "",
+      avatar: c.u_pic || null,
+      timeStr: c.time ? dateFormat(Number(c.time) * 1000) : "",
+      likedCount: c.like_num ?? 0,
+    })),
+  }))
+  return { source: "kw", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+}
+
+// --- Migu (mg) ------------------------------------------------------------
+
+async function getMgComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+  const songId = song.meta.songId
+  if (!songId) throw new Error("缺少歌曲 ID")
+  const url = `https://app.c.nf.migu.cn/MIGUM3.0/user/comment/stack/v1.0?pageSize=${limit}&queryType=1&resourceId=${songId}&resourceType=2&commentId=`
+  const res = await tauriFetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
+    },
+  })
+  if (!res.ok) throw new Error("获取评论失败")
+  const data = (await res.json()) as { code?: string; data?: { commentNums?: string; comments?: any[] } }
+  if (data.code !== "000000" || !data.data) throw new Error("获取评论失败")
+  const total = parseInt(data.data.commentNums ?? "0") || 0
+  const comments: CommentItem[] = (data.data.comments ?? []).map((item) => ({
+    id: String(item.commentId),
+    text: item.commentInfo || "",
+    userName: item.user?.nickName || "",
+    avatar: item.user?.middleIcon || item.user?.bigIcon || item.user?.smallIcon || null,
+    timeStr: item.commentTime ? dateFormat(new Date(item.commentTime).getTime()) : "",
+    likedCount: item.opNumItem?.thumbNum ?? 0,
+    location: null,
+    reply: (item.replyComments ?? []).map((c: any) => ({
+      id: String(c.replyId),
+      text: c.replyInfo || "",
+      userName: c.user?.nickName || "",
+      avatar: c.user?.middleIcon || c.user?.bigIcon || c.user?.smallIcon || null,
+      timeStr: c.replyTime ? dateFormat(new Date(c.replyTime).getTime()) : "",
+      likedCount: null,
+    })),
+  }))
+  return { source: "mg", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+}
+
 // --- entry ----------------------------------------------------------------
 
 /**
- * Fetch online comments for a song. Currently supports NetEase (wy) and QQ (tx);
- * other platforms throw so callers can show a friendly "not supported" state.
+ * Fetch online comments for a song. Supports NetEase (wy), QQ (tx), Kugou (kg),
+ * Kuwo (kw) and Migu (mg). Unsupported platforms throw so callers can show a
+ * friendly "not supported" state.
  */
 export async function getComments(
   song: MusicInfo,
@@ -227,6 +353,12 @@ export async function getComments(
       return getWyComments(song, page, limit)
     case "tx":
       return getTxComments(song, page, limit)
+    case "kg":
+      return getKgComments(song, page, limit)
+    case "kw":
+      return getKwComments(song, page, limit)
+    case "mg":
+      return getMgComments(song, page, limit)
     default:
       throw new Error(`平台「${song.source}」暂不支持在线评论`)
   }

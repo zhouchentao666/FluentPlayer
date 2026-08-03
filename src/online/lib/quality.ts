@@ -46,9 +46,9 @@ export function indexQualitySizes(qualitys: MusicQuality[]): MusicInfoMeta["_qua
 const SOURCE_QUALITY_LEVELS: Record<string, Quality[]> = {
   wy: ["flac", "320k", "128k"],
   tx: ["flac", "320k", "128k"],
-  kg: ["320k", "128k"],
-  kw: ["320k", "128k"],
-  mg: ["320k", "128k"],
+  kg: ["flac", "320k", "128k"],
+  kw: ["flac", "320k", "128k"],
+  mg: ["flac", "320k", "128k"],
 }
 
 /** 返回某在线平台可选的音质档位列表（供播放栏音质菜单使用）。 */
