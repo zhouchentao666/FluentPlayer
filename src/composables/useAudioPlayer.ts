@@ -3,6 +3,7 @@ import { ReadCoverArt, AudioSrc } from '@bridge/app'
 import { type Song } from '../types'
 import { localMetadata } from './useLocalMetadata'
 import { resolveOnlineUrl, resolveOnlinePic, activeQuality } from '@online/player'
+import { useOnlineSources } from '@online/store'
 import { toast } from './useToast'
 
 interface AudioPlayerOptions {
@@ -86,9 +87,13 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
         isLoading.value = false
         isPlaying.value = false
         toast(`在线播放失败：${msg}`, 'error')
-        // 没有任何可用音源时，引导用户前往在线设置导入音源脚本
+        // 仅当确实没有任何已启用的自定义音源时，才引导前往在线设置导入，
+        // 避免有音源（但初始化尚未完成 / 个别来源失败）时误弹音源管理。
         if (msg.includes('没有可用的自定义音源') || msg.includes('noEnabled')) {
-          window.dispatchEvent(new CustomEvent('fluent:no-source'))
+          const hasEnabled = useOnlineSources().state.scripts.some((s) => s.enabled)
+          if (!hasEnabled) {
+            window.dispatchEvent(new CustomEvent('fluent:no-source'))
+          }
         }
       }
       return

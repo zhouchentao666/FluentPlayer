@@ -135,3 +135,35 @@ export function DownloadFile(
 ): Promise<{ size: number; path: string; duration_ms: number }> {
   return invoke('download_file', { url, dest, headers: headers ?? null })
 }
+
+// ---------- 原生拖放（从系统文件管理器拖入音频文件） ----------
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+
+export interface DragDropHandlers {
+  /** 拖拽进入窗口（用于显示拖放提示层）。 */
+  onEnter?: () => void
+  /** 拖拽离开窗口。 */
+  onLeave?: () => void
+  /** 在窗口内松手，paths 为拖入的文件 / 文件夹绝对路径数组。 */
+  onDrop: (paths: string[]) => void
+}
+
+/**
+ * 监听 Tauri 原生拖放事件，返回取消监听的函数。
+ * 需要 tauri.conf.json 中对应窗口 `dragDropEnabled: true`。
+ */
+export function onDragDrop(handlers: DragDropHandlers): () => void {
+  const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+    const payload = event.payload
+    if (payload.type === 'enter' || payload.type === 'over') {
+      handlers.onEnter?.()
+    } else if (payload.type === 'drop') {
+      handlers.onDrop?.(payload.paths ?? [])
+    } else if (payload.type === 'leave') {
+      handlers.onLeave?.()
+    }
+  })
+  return () => {
+    void unlisten.then((fn) => fn()).catch(() => {})
+  }
+}

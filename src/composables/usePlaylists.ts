@@ -8,6 +8,28 @@ import {
 } from '@bridge/app'
 import { type Playlist, type Song } from '../types'
 
+const AUDIO_EXT = /\.(mp3|flac|wav|ogg|m4a|aac|opus|wma|ape|tta|ac3|dts|mp2|mid|midi)$/i
+
+/** 把任意路径集合（文件 + 文件夹）展开为音频文件路径列表。 */
+async function collectAudioPaths(paths: string[]): Promise<string[]> {
+  const files: string[] = []
+  const folders: string[] = []
+  for (const p of paths) {
+    if (AUDIO_EXT.test(p)) files.push(p)
+    else folders.push(p)
+  }
+  const result = [...files]
+  for (const folder of folders) {
+    try {
+      const scanned = await ScanMusicFolder(folder)
+      if (scanned) result.push(...scanned)
+    } catch {
+      // 文件夹扫描失败忽略（可能不是目录或无可读音频）
+    }
+  }
+  return result
+}
+
 export function usePlaylists() {
   const playlists = ref<Playlist[]>([
     { id: 'favorites', name: '我的喜欢', songs: [], folders: [] },
@@ -71,6 +93,27 @@ export function usePlaylists() {
       ...playlist,
       songs: await uniqueSongs(playlist.songs, validPaths),
     })
+  }
+
+  /**
+   * 批量导入路径（文件 / 文件夹混合，常见于拖拽）：自动过滤音频文件，
+   * 文件夹递归扫描后一并导入，跳过已存在路径。返回实际新增的歌曲数。
+   */
+  async function importPaths(playlistId: string, rawPaths: string[]): Promise<number> {
+    const playlist = playlists.value.find(p => p.id === playlistId)
+    if (!playlist || rawPaths.length === 0) return 0
+    const audioPaths = await collectAudioPaths(rawPaths)
+    if (audioPaths.length === 0) return 0
+    const seen = new Set(playlist.songs.map(s => s.path))
+    const added: Song[] = []
+    for (const path of audioPaths) {
+      if (seen.has(path)) continue
+      seen.add(path)
+      added.push(await createSongFromPath(path))
+    }
+    if (added.length === 0) return 0
+    updatePlaylist({ ...playlist, songs: [...playlist.songs, ...added] })
+    return added.length
   }
 
   async function addMusicFolder(playlistId: string) {
@@ -151,6 +194,7 @@ export function usePlaylists() {
     updatePlaylist,
     selectPlaylist,
     addMusicFiles,
+    importPaths,
     addMusicFolder,
     refreshFolder,
     rewatchFolders,

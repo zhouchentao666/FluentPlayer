@@ -11,6 +11,7 @@ import {
   CloseDesktopLyric,
   SetDesktopLyricIgnoreMouseEvents,
   Version,
+  onDragDrop,
 } from '@bridge/app'
 import TitleBar from './components/TitleBar.vue'
 import Sidebar from './components/Sidebar.vue'
@@ -26,6 +27,7 @@ import PlayerDetail from './components/player/PlayerDetail.vue'
 import PlayQueue from './components/player/PlayQueue.vue'
 import { useAudioPlayer } from './composables/useAudioPlayer'
 import { usePlaylists } from './composables/usePlaylists'
+import { toast } from './composables/useToast'
 import { useConfig, type AppSettings, type ConfigPlayback, type OnlineTab, type PinnedOnlineItem, DEFAULT_HOTKEYS, DEFAULT_DESKTOP_LYRIC } from './composables/useConfig'
 import { useLyrics } from './composables/useLyrics'
 import { useWindowEffect } from './composables/useWindowEffect'
@@ -91,6 +93,51 @@ function handleNoSource() {
 }
 window.addEventListener('fluent:no-source', handleNoSource)
 onUnmounted(() => window.removeEventListener('fluent:no-source', handleNoSource))
+
+// ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
+const dragActive = ref(false)
+let dragDepth = 0
+let unlistenDrag: (() => void) | null = null
+
+async function handleDropPaths(paths: string[]) {
+  if (!paths || paths.length === 0) return
+  const target = currentPlaylist.value
+  if (!target) {
+    toast('请先选择一个播放列表再拖入音乐', 'warning')
+    return
+  }
+  const added = await importPaths(target.id, paths)
+  if (added > 0) {
+    toast(`已导入 ${added} 首歌曲到「${target.name}」`, 'success')
+  } else {
+    toast('拖入的内容中没有可识别的音频文件', 'warning')
+  }
+}
+
+onMounted(async () => {
+  try {
+    unlistenDrag = onDragDrop({
+      onEnter: () => {
+        dragDepth += 1
+        dragActive.value = true
+      },
+      onLeave: () => {
+        dragDepth = Math.max(0, dragDepth - 1)
+        if (dragDepth === 0) dragActive.value = false
+      },
+      onDrop: (paths) => {
+        dragDepth = 0
+        dragActive.value = false
+        void handleDropPaths(paths)
+      },
+    })
+  } catch {
+    // 拖放不可用（如非 Tauri 环境）时静默忽略
+  }
+})
+onUnmounted(() => {
+  unlistenDrag?.()
+})
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
@@ -141,7 +188,7 @@ const playbackState = ref<ConfigPlayback>({
   time: 0,
 })
 
-const { playlists, selectedId, updatePlaylists, updatePlaylist, selectPlaylist, addMusicFiles, addMusicFolder, refreshFolder, rewatchFolders, addSongs, replaceSongs } = usePlaylists()
+const { playlists, selectedId, updatePlaylists, updatePlaylist, selectPlaylist, addMusicFiles, importPaths, addMusicFolder, refreshFolder, rewatchFolders, addSongs, replaceSongs } = usePlaylists()
 const currentPlaylist = computed(() => playlists.value.find(p => p.id === selectedId.value))
 const currentPlaylistSort = computed(() => currentPlaylist.value ? settings.value.playlistSorts[currentPlaylist.value.id] : undefined)
 
@@ -656,6 +703,19 @@ onUnmounted(() => {
       @clear="audio.clearQueue"
     />
     <audio ref="audioRef" style="display: none;"></audio>
+
+    <Transition name="fade">
+      <div v-if="dragActive" class="drag-overlay">
+        <div class="drag-card">
+          <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 16V4M7 9l5-5 5 5" />
+            <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+          </svg>
+          <div class="drag-text">拖放音频文件到此处</div>
+          <div class="drag-sub">将批量导入到当前播放列表</div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -678,6 +738,46 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: -1;
+}
+
+.drag-overlay {
+  position: fixed;
+  inset: 12px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--fluent-input-border, #4a90d9);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--fluent-bg-glass) 80%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.drag-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--fluent-text);
+  opacity: 0.92;
+}
+.drag-text {
+  font-size: 18px;
+  font-weight: 600;
+}
+.drag-sub {
+  font-size: 13px;
+  color: var(--fluent-text-secondary);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .content {

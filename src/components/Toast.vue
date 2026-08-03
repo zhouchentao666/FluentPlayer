@@ -39,6 +39,7 @@ import { toasts } from '../composables/useToast'
 }
 .toast-error { background: rgba(160, 46, 52, 0.92); }
 .toast-success { background: rgba(38, 120, 70, 0.92); }
+.toast-warning { background: rgba(178, 122, 38, 0.92); }
 .toast-enter-active, .toast-leave-active { transition: all 0.25s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>

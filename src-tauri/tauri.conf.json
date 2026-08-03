@@ -22,7 +22,7 @@
         "decorations": false,
         "transparent": true,
         "center": true,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "windowEffects": {
           "effects": ["acrylic", "mica"]
         }
