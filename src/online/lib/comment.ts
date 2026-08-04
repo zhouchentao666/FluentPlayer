@@ -80,17 +80,18 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
   const threadId = `R_SO_4_${songId}`
-  // 网易云评论标准分页：offset + limit + before（上一次请求的 cursor）。
-  // 注意：这里不能用 Date.now() 当 cursor——会导致接口返回空/报错。
-  const offset = (page - 1) * limit
-  const before = (song as any).__wyBefore ?? ""
+  // 网易云评论分页：新版接口使用 cursor + orderType + pageNo + pageSize。
+  // 旧版的 offset/limit/before 写法服务端已不稳定，空 before 会导致接口报错。
+  // orderType: 1=按推荐排序, 2=最热, 3=最新。cursor 为上一页返回的游标（首页为 0）。
+  const cursor = Number((song as any).__wyCursor ?? 0)
   const body = weapi(
     {
       rid: threadId,
       threadId,
-      offset: String(offset),
-      limit: String(limit),
-      before: String(before),
+      cursor: String(cursor),
+      orderType: "1",
+      pageNo: String(page),
+      pageSize: String(limit),
     },
     randomSecret(),
   )
@@ -114,7 +115,7 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const raw = data.data.comments ?? []
   const total = data.data.totalCount ?? 0
   // 记录本次 cursor，供下一页使用（网易云用上一次返回的 cursor 翻页）。
-  ;(song as any).__wyBefore = data.data.cursor ?? before
+  ;(song as any).__wyCursor = data.data.cursor ?? cursor
   const comments: CommentItem[] = raw.map((item) => ({
     id: String(item.commentId),
     text: item.content ? applyWyEmoji(item.content) : "",

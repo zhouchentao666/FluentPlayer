@@ -12,6 +12,7 @@ interface KwSongRaw {
   ALBUMID: string
   N_MINFO?: string
   web_albumpic_short?: string
+  pic?: string
 }
 
 interface KwSearchResponse {
@@ -57,6 +58,13 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
   const picFromSearch = raw.web_albumpic_short
     ? `https://img1.kuwo.cn/star/albumcover/${raw.web_albumpic_short}`
     : null
+  // 搜索结果自带 pic 字段（完整 URL，如 http://img4.kuwo.cn/...）优先使用，
+  // 缺失时退回 albumcover 缩略图，都缺失则留空给 getKwCoverUrl 用 rid 补。
+  const picFromRaw = raw.pic?.startsWith("http")
+    ? raw.pic
+    : raw.pic
+      ? `https://www.kuwo.cn${raw.pic}`
+      : null
   return {
     id: `kw_${songId}`,
     name: decodeKwName(raw.SONGNAME),
@@ -67,30 +75,31 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
     meta: {
       songId,
       albumId: raw.ALBUMID || "",
-      // 搜索接口常缺封面：picFromSearch 缺失时先给占位，稍后 searchKuwo 并行补真实封面。
-      picUrl: picFromSearch ?? "",
+      // 封面优先级：搜索结果自带 pic > albumcover 缩略图 > 稍后 searchKuwo 并行补真实封面。
+      picUrl: picFromRaw ?? picFromSearch ?? "",
       qualitys,
       _qualitys,
     },
   }
 }
 
-// 通过 kuwo 歌曲详情接口获取真实封面 URL（artistpicserver 旧接口已失效）。
+// 通过 kuwo 的 artistpicserver 接口按歌曲 rid 获取专辑封面（参考 Mio-Music 实现）。
+// 旧的 m.kuwo.cn musicInfo 接口已经失效、返回空，故改用 artistpicserver.pic.web。
 async function getKwCoverUrl(songId: string): Promise<string> {
   try {
-    const res = await tauriFetch(
-      `https://m.kuwo.cn/api/www/music/musicInfo?mid=${encodeURIComponent(songId)}`,
-      {
-        method: "GET",
-        headers: {
-          Referer: "https://www.kuwo.cn/",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
+    const url =
+      `http://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic` +
+      `&pictype=500&size=500&rid=${encodeURIComponent(songId)}`
+    const res = await tauriFetch(url, {
+      method: "GET",
+      headers: {
+        Referer: "https://www.kuwo.cn/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
-    )
+    })
     if (!res.ok) return ""
     const data = (await res.json()) as any
-    const pic = data?.data?.pic
+    const pic = data?.url ?? data?.pic ?? ""
     if (!pic) return ""
     // 返回的相对/绝对地址统一走 kuwo 域名。
     return pic.startsWith("http") ? pic : `https://www.kuwo.cn${pic}`
