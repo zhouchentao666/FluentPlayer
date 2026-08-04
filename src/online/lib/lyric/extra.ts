@@ -1,4 +1,5 @@
 import { httpFetch } from "@online/lib/http"
+import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
@@ -103,29 +104,77 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
 interface WyLyricResponse {
   lrc?: { lyric?: string }
   tlyric?: { lyric?: string }
+  // /eapi/song/lyric/v1 返回 AMLL/TTML 逐字歌词（优先使用，不转 LRC）
+  ttml?: string
+  data?: { lrc?: { lyric?: string }; tlyric?: { lyric?: string }; ttml?: string }
 }
 
-// NetEase lyric via the classic public endpoint, which returns standard
-// `[mm:ss.xx]` LRC. (The newer eapi /song/lyric/v1 endpoint returns word-by-word
-// YRC JSON that our LRC parser can't read.) No signing needed; numeric songId.
+// NetEase lyric. Prefer the eapi /song/lyric/v1 endpoint, which returns the
+// AMLL/TTML timed lyric (data.ttml) — used directly by the AMLL renderer
+// instead of being flattened into LRC. Falls back to the plain /api/song/lyric
+// LRC endpoint when TTML is absent. numeric songId.
 export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const id = song.meta.songId
     if (!id) return null
-    const res = await httpFetch(
-      `https://music.163.com/api/song/lyric?os=pc&id=${encodeURIComponent(id)}&lv=-1&kv=-1&tv=-1`,
-      {
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
+
+    const url = "https://music.163.com/eapi/song/lyric/v1"
+    const body = eapi(url, {
+      id: String(id),
+      cp: false,
+      tv: 0,
+      lv: 0,
+      rv: 0,
+      kv: 0,
+      yv: 0,
+      ytv: 0,
+      yrv: 0,
+    })
+    let res = await httpFetch(`${url}?${new URLSearchParams(body)}`, {
+      method: "POST",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Referer: "https://music.163.com/",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    })
+
+    let ttml: string | null = null
+    let lrc: string | null = null
+    let tlyric: string | null = null
+
+    if (res.ok) {
+      const data = (await res.json()) as WyLyricResponse
+      ttml = data.data?.ttml ?? data.ttml ?? null
+      lrc = data.data?.lrc?.lyric ?? data.lrc?.lyric ?? null
+      tlyric = data.data?.tlyric?.lyric ?? data.tlyric?.lyric ?? null
+    }
+
+    // 没有 TTML 时回退到经典 LRC 接口
+    if (!ttml) {
+      const fallback = await httpFetch(
+        `https://music.163.com/api/song/lyric?os=pc&id=${encodeURIComponent(id)}&lv=-1&kv=-1&tv=-1`,
+        {
+          method: "GET",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          },
+        }
+      )
+      if (fallback.ok) {
+        const data = (await fallback.json()) as WyLyricResponse
+        lrc = data.lrc?.lyric ?? lrc
+        tlyric = data.tlyric?.lyric ?? tlyric
       }
-    )
-    if (!res.ok) return null
-    const data = (await res.json()) as WyLyricResponse
-    const lyric = data.lrc?.lyric
-    if (!lyric?.trim()) return null
-    return { lyric, tlyric: data.tlyric?.lyric || null }
+    }
+
+    if (!ttml && !lrc?.trim()) return null
+    return {
+      // 优先用 AMLL/TTML 原文（前端 parseLyric 会自动识别并渲染逐字），否则用 LRC
+      lyric: ttml ?? lrc ?? "",
+      tlyric: tlyric || null,
+      ttml: ttml || null,
+    }
   } catch {
     return null
   }

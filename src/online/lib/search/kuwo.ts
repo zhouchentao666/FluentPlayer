@@ -67,13 +67,35 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
     meta: {
       songId,
       albumId: raw.ALBUMID || "",
-      picUrl:
-        picFromSearch ??
-        // 搜索接口常缺封面：回退到 artistpicserver 的 rid 接口（浏览器可跟随重定向直接出图）。
-        `http://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic&pictype=500&size=500&rid=${songId}`,
+      // 搜索接口常缺封面：picFromSearch 缺失时先给占位，稍后 searchKuwo 并行补真实封面。
+      picUrl: picFromSearch ?? "",
       qualitys,
       _qualitys,
     },
+  }
+}
+
+// 通过 kuwo 歌曲详情接口获取真实封面 URL（artistpicserver 旧接口已失效）。
+async function getKwCoverUrl(songId: string): Promise<string> {
+  try {
+    const res = await tauriFetch(
+      `https://m.kuwo.cn/api/www/music/musicInfo?mid=${encodeURIComponent(songId)}`,
+      {
+        method: "GET",
+        headers: {
+          Referer: "https://www.kuwo.cn/",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+      },
+    )
+    if (!res.ok) return ""
+    const data = (await res.json()) as any
+    const pic = data?.data?.pic
+    if (!pic) return ""
+    // 返回的相对/绝对地址统一走 kuwo 域名。
+    return pic.startsWith("http") ? pic : `https://www.kuwo.cn${pic}`
+  } catch {
+    return ""
   }
 }
 
@@ -113,6 +135,16 @@ export async function searchKuwo(
   const data = (await res.json()) as KwSearchResponse
   const total = parseInt(data.TOTAL || "0")
   const list = (data.abslist || []).map(normalizeKwSong)
+
+  // 并行补充缺失封面（artistpicserver 旧接口已失效，统一走歌曲详情接口）。
+  await Promise.all(
+    list
+      .filter((s) => !s.meta.picUrl)
+      .map(async (s) => {
+        const pic = await getKwCoverUrl(s.meta.songId)
+        if (pic) s.meta.picUrl = pic
+      }),
+  )
 
   return {
     list,

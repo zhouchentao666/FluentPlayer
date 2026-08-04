@@ -80,15 +80,17 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
   const threadId = `R_SO_4_${songId}`
+  // 网易云评论标准分页：offset + limit + before（上一次请求的 cursor）。
+  // 注意：这里不能用 Date.now() 当 cursor——会导致接口返回空/报错。
+  const offset = (page - 1) * limit
+  const before = (song as any).__wyBefore ?? ""
   const body = weapi(
     {
-      cursor: Date.now(),
-      offset: 0,
-      orderType: 1,
-      pageNo: page,
-      pageSize: limit,
       rid: threadId,
       threadId,
+      offset: String(offset),
+      limit: String(limit),
+      before: String(before),
     },
     randomSecret(),
   )
@@ -106,11 +108,13 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   if (!res.ok) throw new Error("获取评论失败")
   const data = (await res.json()) as {
     code?: number
-    data?: { comments?: any[]; totalCount?: number }
+    data?: { comments?: any[]; totalCount?: number; cursor?: number | string; hasMore?: boolean }
   }
   if (data.code !== 200 || !data.data) throw new Error("获取评论失败")
   const raw = data.data.comments ?? []
   const total = data.data.totalCount ?? 0
+  // 记录本次 cursor，供下一页使用（网易云用上一次返回的 cursor 翻页）。
+  ;(song as any).__wyBefore = data.data.cursor ?? before
   const comments: CommentItem[] = raw.map((item) => ({
     id: String(item.commentId),
     text: item.content ? applyWyEmoji(item.content) : "",
@@ -161,12 +165,14 @@ function txFormatTime(time: unknown): number | null {
   return parseInt(s + "000")
 }
 
-// QQ 评论接口 topid 需要数字 songId；meta.songId 实际存的是 songmid（字母数字 mid）。
-// 当仅有 songmid 时，用 musicu.fcg 解析出数字 songId（参考 Mio-Music tx/comment.rs）。
+// QQ 评论接口 topid 需要数字 songId；meta.songId 实际存的是 songmid（字母数字 mid），
+// 必须先用 musicu.fcg 解析出数字 songId（注意：songmid 取 meta.songId，而非 strMediaMid）。
 async function getTxSongId(song: MusicInfo): Promise<string> {
   const s = song.meta.songId
+  // 已经是纯数字 ID 时直接复用（如从歌曲详情进来的情况）。
   if (s && /^\d+$/.test(s)) return s
-  const songmid = song.meta.strMediaMid || s
+  // 真正用于解析的 mid 是 meta.songId（songmid），strMediaMid 是音频文件 mid，二者不同。
+  const songmid = s || song.meta.strMediaMid
   if (!songmid) throw new Error("缺少歌曲 mid")
   const body = {
     comm: { ct: "19", cv: "1859", uin: "0" },

@@ -69,6 +69,8 @@ export interface LyricInfo {
   tlyric?: string | null
   rlyric?: string | null
   lxlyric?: string | null
+  /** AMLL / TTML 逐字歌词原文（网易云 v1 接口返回）；优先于 lrc 使用，不转成 lrc。 */
+  ttml?: string | null
 }
 
 export interface LyricLine {
