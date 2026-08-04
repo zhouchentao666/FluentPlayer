@@ -2,6 +2,7 @@ import { httpFetch as tauriFetch } from "@online/lib/http"
 import * as pako from "pako"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
 import { getTxLyric, getWyLyric, getKgLyric, getMgLyric } from "@online/lib/lyric/extra"
+import { kwLikeToYrc } from "@online/lib/lyric/wordTiming"
 
 // Built-in lyric fetching, fetched directly from each platform's public API
 // (like built-in search) rather than relying on source scripts — most lx-music
@@ -143,9 +144,20 @@ const KW_TIME_EXP = /^\[([\d:.]*)\]/
 const KW_EXIST_TIME_EXP = /\[\d{1,2}:.*\d{1,4}\]/
 const KW_WORD_TIME_ALL = /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g
 
-// Parse plain LRC text into { lyric, tlyric }. Mirrors kw/lyric.js parseLrc +
-// transformLrc, but emits only timestamped lines (no [ti:]/[ar:] tags needed).
+// Parse KuWo lyric text into { lyric, tlyric }.
+// Two shapes are handled:
+//   1. Word-timed KRC-like: `[ms,dur]<off,dur>word...` — kept as word-by-word
+//      lyrics by normalizing to YRC via kwLikeToYrc (useLyrics.parseYrc renders
+//      it character-by-character). Translation lines (the `]`-prefixed group in
+//      kw/lyric) are dropped here since the timed body already carries them.
+//   2. Plain LRC: `[mm:ss.xx]text` — emitted as timestamped lines.
 function kwParseLrc(text: string): LyricInfo | null {
+  if (KW_WORD_TIME_ALL.test(text)) {
+    const yrc = kwLikeToYrc(text)
+    if (yrc.trim()) return { lyric: yrc, tlyric: null }
+    return null
+  }
+
   const lines = text.split(/\r\n|\r|\n/)
   const lrcArr: { time: string; text: string }[] = []
   for (const raw of lines) {
