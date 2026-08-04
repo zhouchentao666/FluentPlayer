@@ -3,7 +3,6 @@ import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
-import { krcToYrc, kwLikeToYrc, qrcToYrc } from "@online/lib/lyric/wordTiming"
 
 // js-md5 CommonJS/ESM interop (same pattern as src/lib/search/mg.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,12 +91,8 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
     const data = JSON.parse(text) as TxLyricResponse
 
     if (data.code !== 0 || !data.lyric) return null
-    const rawLyric = decodeName(b64DecodeUtf8(data.lyric))
-    if (!rawLyric.trim()) return null
-    // Some QQ songs embed QRC word-timing as `<off,dur,dur>word` groups inside
-    // the plain LRC payload. Normalize those to YRC so the AMLL renderer shows
-    // word-by-word lyrics; otherwise keep the plain LRC untouched.
-    const lyric = /<\d+,\d+,\d+>/.test(rawLyric) ? qrcToYrc(rawLyric) : rawLyric
+    const lyric = decodeName(b64DecodeUtf8(data.lyric))
+    if (!lyric.trim()) return null
     const tlyric = data.trans ? decodeName(b64DecodeUtf8(data.trans)) : ""
     return { lyric, tlyric: tlyric || null }
   } catch {
@@ -265,28 +260,29 @@ function decodeKrc(content: string): LyricInfo | null {
     }
   }
 
-  // Each line is `[<start>,<dur>]<(off,dur)word...>`. Keep the per-word timing
-  // as KRC-style text and normalize it to YRC (parseYrc in useLyrics renders it
-  // word-by-word). The embedded translation (if any) becomes a timestamped plain
-  // tlyric aligned to each line.
-  const yrcLines: string[] = []
+  // Each line is `[<start>,<dur>]<(off,dur)word...>`. Convert the line time to
+  // a normal `[mm:ss.xx]` tag and strip per-word timing for the plain LRC.
+  const lrcLines: string[] = []
   const tlrcLines: string[] = []
   let idx = 0
   for (const line of str.split("\n")) {
-    const m = /^\[(\d+),\d+\]([\s\S]*)$/.exec(line)
+    const m = /^\[(\d+),\d+\].*/.exec(line)
     if (!m) continue
-    yrcLines.push(line.trim())
-    if (tlyricLines) {
-      const startMs = parseInt(m[1])
-      const mm = String(Math.floor(startMs / 60000)).padStart(2, "0")
-      const ss = String(Math.floor((startMs % 60000) / 1000)).padStart(2, "0")
-      const cs = String(Math.floor((startMs % 1000) / 10)).padStart(2, "0")
-      tlrcLines.push(`[${mm}:${ss}.${cs}]${tlyricLines[idx] ?? ""}`)
-    }
+    let time = parseInt(m[1])
+    const ms = time % 1000
+    time = Math.floor(time / 1000)
+    const mm = String(Math.floor(time / 60)).padStart(2, "0")
+    const ss = String(time % 60).padStart(2, "0")
+    const tag = `[${mm}:${ss}.${String(ms).padStart(3, "0")}]`
+    const words = decodeName(
+      line.replace(/^\[\d+,\d+\]/, "").replace(/<\d+,\d+,\d+>/g, "")
+    )
+    lrcLines.push(`${tag}${words}`)
+    if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
-  const lyric = krcToYrc(yrcLines.join("\n"))
+  const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
   return { lyric, tlyric: tlrcLines.length ? tlrcLines.join("\n") : null }
 }
@@ -484,11 +480,30 @@ function mgDecryptMrc(data: string): string {
   return mgLongArrayToString(mgTeaDecrypt(mgHexToLongArray(data), MG_MRC_KEY))
 }
 
-// Convert decrypted MRC word-timed text into YRC (word-by-word) format that
-// useLyrics parses via parseYrc. Lines look like `[lineMs,dur]<off,dur>word...`
-// (KRC-like, 2 word fields) — normalize to `(off,dur,0)` and keep timing.
+// Convert decrypted MRC word-timed text into plain `[mm:ss.xx]` LRC. Mirrors
+// mg/lyric.js mrcTools.parseLyric, keeping only the plain `lyric` output (the
+// per-word lxlyric is dropped). Lines look like `[lineMs,dur]<off,dur>word...`.
 function mgParseLyric(str: string): string {
-  return kwLikeToYrc(str)
+  str = str.replace(/\r/g, "")
+  const lineTime = /^\s*\[(\d+),\d+\]/
+  const wordTimeAll = /(\(\d+,\d+\))/g
+  const lrcLines: string[] = []
+  for (const line of str.split("\n")) {
+    if (line.length < 6) continue
+    const result = lineTime.exec(line)
+    if (!result) continue
+
+    let time = parseInt(result[1])
+    const ms = time % 1000
+    time = Math.floor(time / 1000)
+    const m = String(Math.floor(time / 60)).padStart(2, "0")
+    const s = String(time % 60).padStart(2, "0")
+    const tag = `${m}:${s}.${ms}`
+
+    const words = line.replace(lineTime, "")
+    lrcLines.push(`[${tag}]${words.replace(wordTimeAll, "")}`)
+  }
+  return lrcLines.join("\n")
 }
 
 // Ported from mg/musicSearch.js createSignature (static device id + salts).
