@@ -10,6 +10,7 @@ import { useOnlineSources } from '@online/store'
 import { parsePlaylistLink } from '@online/lib/playlists/openLink'
 import { toast } from '../../composables/useToast'
 import OnlineSearch from './OnlineSearch.vue'
+import AudioMatch from './AudioMatch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineCharts from './OnlineCharts.vue'
@@ -46,6 +47,23 @@ const tabTitle = computed(() => TABS.find((t) => t.id === props.tab)?.label ?? '
 
 /** 音源管理改为顶栏按钮弹层，让主标签维持「歌单 / 专辑 / 排行榜 / 搜索」四项。 */
 const sourcesModal = ref(false)
+
+/** 听歌识曲弹层 */
+const recognizeModal = ref(false)
+function openRecognize() {
+  recognizeModal.value = true
+}
+function onRecognizePlay(musics: MusicInfo[], index: number) {
+  emit('play-songs', musics.map(musicInfoToSong), index)
+}
+function onRecognizeSearch(keyword: string) {
+  recognizeModal.value = false
+  emit('update:tab', 'search')
+  // 搜索页此时可能尚未挂载，延迟到挂载后再派发事件，确保监听器已注册
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('fluent-recognize-search', { detail: keyword }))
+  }, 50)
+}
 
 const addMenu = ref<{ musics: MusicInfo[]; title: string } | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -204,6 +222,10 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 2v12M3.5 5.5v5M12.5 5.5v5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
           音源
         </button>
+        <button class="open-link-btn" title="听歌识曲" @click="openRecognize">
+          <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 9.5a2.5 2.5 0 0 0 2.5-2.5V3a2.5 2.5 0 0 0-5 0v4A2.5 2.5 0 0 0 8 9.5zm3.5-2.5a3.5 3.5 0 0 1-7 0H3a5 5 0 0 0 4.5 4.95V15h1v-2.55A5 5 0 0 0 13 7h-1.5z" fill="currentColor"/></svg>
+          听歌识曲
+        </button>
       </div>
     </div>
 
@@ -338,6 +360,17 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           <div v-if="playlists.length === 0" class="state small">暂无歌单</div>
         </div>
         <button class="cancel" @click="addMenu = null">取消</button>
+      </div>
+    </div>
+
+    <!-- 听歌识曲 -->
+    <div v-if="recognizeModal" class="modal-mask" @click.self="recognizeModal = false">
+      <div class="recognize-modal">
+        <AudioMatch
+          @play="onRecognizePlay"
+          @search="onRecognizeSearch"
+          @close="recognizeModal = false"
+        />
       </div>
     </div>
   </div>
@@ -553,6 +586,19 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
   align-items: center;
   justify-content: center;
   z-index: 30;
+}
+/* 听歌识曲弹层：为内部组件提供其使用的 CSS 变量映射 */
+.recognize-modal {
+  width: 420px;
+  max-width: 92%;
+  max-height: 82%;
+  display: flex;
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--fluent-border);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
 }
 .add-menu {
   width: 360px;

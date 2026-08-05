@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import type { MusicInfo, SearchResult } from '@online/types/music'
 import type { Playlist } from '@online/lib/playlists'
 import type { Album } from '@online/lib/albums'
@@ -67,6 +67,18 @@ async function loadHot() {
 
 // 之前只在 platform / tab 变化时才拉热搜，首次进入搜索页永远是空的
 onMounted(loadHot)
+
+// 听歌识曲「搜索」回调：来自 OnlineView 派发的自定义事件
+function onRecognizeSearch(e: Event) {
+  const kw = (e as CustomEvent<string>).detail?.trim()
+  if (!kw) return
+  // 识曲结果多来自网易云，切换回网易云以保证能搜到
+  if (platform.value !== 'wy') platform.value = 'wy'
+  query.value = kw
+  runSearch(1)
+}
+onMounted(() => window.addEventListener('fluent-recognize-search', onRecognizeSearch))
+onBeforeUnmount(() => window.removeEventListener('fluent-recognize-search', onRecognizeSearch))
 
 // ---- 历史搜索记录 ----
 const HISTORY_KEY = 'fluentplayer-online:searchHistory'
