@@ -260,48 +260,31 @@ function decodeKrc(content: string): LyricInfo | null {
     }
   }
 
-  // Each line is `[<lineStartMs>,<lineDurMs>]<off,dur,param>word<off,dur,param>word...`.
-  // We produce two outputs:
-  //   • `lyric`   — plain `[mm:ss.xx]` LRC with per-word timing stripped.
-  //   • `crlyric` — word-timed (逐字) eslrc: `[lineStartMs,lineDurMs]<off,dur>word...`,
-  //                which @applemusic-like-lyrics' parseEslrc consumes for the AMLL
-  //                karaoke renderer. We keep the angle-bracket `<off,dur>` form and
-  //                drop the third krc param byte (a renderer-agnostic karaoke tag).
+  // Each line is `[<start>,<dur>]<(off,dur)word...>`. Convert the line time to
+  // a normal `[mm:ss.xx]` tag and strip per-word timing for the plain LRC.
   const lrcLines: string[] = []
-  const crlrcLines: string[] = []
   const tlrcLines: string[] = []
   let idx = 0
   for (const line of str.split("\n")) {
-    const m = /^\[(\d+,\d+)\].*/.exec(line)
+    const m = /^\[(\d+),\d+\].*/.exec(line)
     if (!m) continue
-    const linePrefix = m[1] // "lineStartMs,lineDurMs"（毫秒）
-    const startMs = parseInt(linePrefix.split(",")[0])
-    let time = startMs
+    let time = parseInt(m[1])
     const ms = time % 1000
     time = Math.floor(time / 1000)
     const mm = String(Math.floor(time / 60)).padStart(2, "0")
     const ss = String(time % 60).padStart(2, "0")
     const tag = `[${mm}:${ss}.${String(ms).padStart(3, "0")}]`
-    const body = line.replace(/^\[\d+,\d+\]/, "")
-    // plain LRC: drop every `<off,dur,param>` wrapper, keep only the word text.
-    const words = decodeName(body.replace(/<\d+,\d+,\d+>/g, ""))
+    const words = decodeName(
+      line.replace(/^\[\d+,\d+\]/, "").replace(/<\d+,\d+,\d+>/g, "")
+    )
     lrcLines.push(`${tag}${words}`)
-    // 逐字 eslrc: keep `<off,dur>` (relative ms) wrapping each word, drop the param.
-    // 行首保留原始的 `[lineStartMs,lineDurMs]`（毫秒），供 parseEslrc 解析。
-    const crWords = decodeName(body.replace(/<(\d+,\d+),\d+>/g, "<$1>"))
-    crlrcLines.push(`[${linePrefix}]${crWords}`)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
   const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
-  const crlyric = crlrcLines.join("\n")
-  return {
-    lyric,
-    tlyric: tlrcLines.length ? tlrcLines.join("\n") : null,
-    crlyric: crlyric.trim() ? crlyric : null,
-  }
+  return { lyric, tlyric: tlrcLines.length ? tlrcLines.join("\n") : null }
 }
 
 async function kgSearchLyric(

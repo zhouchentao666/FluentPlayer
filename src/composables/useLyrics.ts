@@ -102,18 +102,7 @@ export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } 
     const lyricInfo = await resolveOnlineLyric(info).catch(() => null)
     if (seq !== loadSeq) return
     if (!lyricInfo?.lyric) return
-    // 酷狗 KRC 逐字歌词（crlyric）作为增强；解析失败/为空时回退到纯 LRC，
-    // 保证歌词一定可见（避免逐字解析异常导致整首歌没歌词）。
-    let parsed: LyricLine[] = []
-    if (lyricInfo.crlyric) {
-      try {
-        const eslrc = parseLyric(lyricInfo.crlyric, 'eslrc')
-        if (eslrc.length > 0) parsed = eslrc
-      } catch {
-        parsed = []
-      }
-    }
-    if (parsed.length === 0) parsed = parseLyric(lyricInfo.lyric)
+    const parsed = parseLyric(lyricInfo.lyric)
     lyrics.value = parsed
     hasLyrics.value = parsed.length > 0
   }

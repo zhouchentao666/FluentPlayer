@@ -71,8 +71,6 @@ export interface LyricInfo {
   lxlyric?: string | null
   /** AMLL / TTML 逐字歌词原文（网易云 v1 接口返回）；优先于 lrc 使用，不转成 lrc。 */
   ttml?: string | null
-  /** 酷狗 KRC 逐字歌词（eslrc 格式 `[lineMs,lineDur]<off,dur>word`）；供 AMLL 卡拉OK渲染。 */
-  crlyric?: string | null
 }
 
 export interface LyricLine {
