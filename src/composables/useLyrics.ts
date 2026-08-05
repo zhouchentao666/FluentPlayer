@@ -102,11 +102,18 @@ export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } 
     const lyricInfo = await resolveOnlineLyric(info).catch(() => null)
     if (seq !== loadSeq) return
     if (!lyricInfo?.lyric) return
-    // 优先使用逐字歌词（酷狗 KRC 的 crlyric / 网易云 TTML 已包含在 lyric 中），
-    // 否则回退到纯 LRC。
-    const parsed = lyricInfo.crlyric
-      ? parseLyric(lyricInfo.crlyric, 'eslrc')
-      : parseLyric(lyricInfo.lyric)
+    // 酷狗 KRC 逐字歌词（crlyric）作为增强；解析失败/为空时回退到纯 LRC，
+    // 保证歌词一定可见（避免逐字解析异常导致整首歌没歌词）。
+    let parsed: LyricLine[] = []
+    if (lyricInfo.crlyric) {
+      try {
+        const eslrc = parseLyric(lyricInfo.crlyric, 'eslrc')
+        if (eslrc.length > 0) parsed = eslrc
+      } catch {
+        parsed = []
+      }
+    }
+    if (parsed.length === 0) parsed = parseLyric(lyricInfo.lyric)
     lyrics.value = parsed
     hasLyrics.value = parsed.length > 0
   }
