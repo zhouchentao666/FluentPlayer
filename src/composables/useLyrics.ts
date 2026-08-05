@@ -102,7 +102,11 @@ export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } 
     const lyricInfo = await resolveOnlineLyric(info).catch(() => null)
     if (seq !== loadSeq) return
     if (!lyricInfo?.lyric) return
-    const parsed = parseLyric(lyricInfo.lyric)
+    // 优先使用逐字歌词（酷狗 KRC 的 crlyric / 网易云 TTML 已包含在 lyric 中），
+    // 否则回退到纯 LRC。
+    const parsed = lyricInfo.crlyric
+      ? parseLyric(lyricInfo.crlyric, 'eslrc')
+      : parseLyric(lyricInfo.lyric)
     lyrics.value = parsed
     hasLyrics.value = parsed.length > 0
   }
