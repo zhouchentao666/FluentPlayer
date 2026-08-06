@@ -117,7 +117,6 @@ const settings = ref<AppSettings>({
   songColorBlur: 30,
   fullScreenBackground: 'dynamic',
   coverTransition: 'fade',
-  audioVisualizer: true,
   immersivePlayerBar: false,
   lyricFontSize: 36,
   lyricFontFamily: '',
@@ -665,9 +664,6 @@ onUnmounted(() => {
       :background-mode="settings.fullScreenBackground"
       :immersive-player-bar="settings.immersivePlayerBar"
       :cover-transition="settings.coverTransition"
-      :audio-el="audioRef"
-      :accent-color="settings.accentColor"
-      :audio-visualizer="settings.audioVisualizer"
       @close="togglePlayerDetail"
       @seek="audio.seek"
     />

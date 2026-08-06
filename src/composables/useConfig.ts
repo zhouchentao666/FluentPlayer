@@ -119,8 +119,6 @@ export interface AppSettings {
   songColorBlur: number
   fullScreenBackground: FullScreenBackground
   coverTransition: CoverTransition
-  /** 全屏播放器是否显示音频可视化（默认开）。 */
-  audioVisualizer: boolean
   immersivePlayerBar: boolean
   lyricFontSize: number
   lyricFontFamily: string
@@ -230,7 +228,6 @@ export function useConfig(
           songColorBlur: hasEffect ? (config.settings.songColorBlur ?? 30) : 30,
           fullScreenBackground: (config.settings.fullScreenBackground as FullScreenBackground) || 'static',
           coverTransition: ((config.settings as unknown as Record<string, unknown>).coverTransition as CoverTransition) || 'fade',
-          audioVisualizer: ((config.settings as unknown as Record<string, unknown>).audioVisualizer as boolean) ?? true,
           immersivePlayerBar: config.settings.immersivePlayerBar ?? false,
           lyricFontSize: typeof config.settings.lyricFontSize === 'number' && config.settings.lyricFontSize > 0 ? config.settings.lyricFontSize : 36,
           lyricFontFamily: typeof config.settings.lyricFontFamily === 'string' ? config.settings.lyricFontFamily : '',

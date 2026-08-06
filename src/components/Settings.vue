@@ -215,12 +215,6 @@ function manualCheckUpdate() {
             @update:model-value="value => update({ coverTransition: value as AppSettings['coverTransition'] })"
           />
         </SettingRow>
-        <SettingRow label="音频可视化" description="全屏播放器底部显示随音乐律动的频谱条">
-          <ToggleSwitch
-            :model-value="settings.audioVisualizer"
-            @update:model-value="value => update({ audioVisualizer: value })"
-          />
-        </SettingRow>
         <SettingRow label="沉浸式播放栏" description="鼠标移开时淡化播放栏中间与右侧，移入时恢复显示">
           <ToggleSwitch
             :model-value="settings.immersivePlayerBar"

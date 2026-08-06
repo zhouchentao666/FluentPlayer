@@ -4,7 +4,6 @@ import PlayerDetailBackground from './PlayerDetailBackground.vue'
 import PlayerDetailLeft from './PlayerDetailLeft.vue'
 import PlayerDetailTopChrome from './PlayerDetailTopChrome.vue'
 import PlayerDetailLyrics from './PlayerDetailLyrics.vue'
-import AudioVisualizer from './AudioVisualizer.vue'
 import { usePlayerDetail } from '../../composables/usePlayerDetail'
 import type { Song } from '../../types'
 import type { LyricLine } from '../../composables/useLyrics'
@@ -21,12 +20,6 @@ const props = defineProps<{
   immersivePlayerBar?: boolean
   coverTransition?: 'fade' | 'slide-left' | 'slide-both'
   hideLyrics?: boolean
-  /** 共享的音频元素，用于音频可视化。 */
-  audioEl?: HTMLAudioElement | null
-  /** 强调色，用于可视化频谱着色。 */
-  accentColor?: string
-  /** 是否显示音频可视化。 */
-  audioVisualizer?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -111,49 +104,40 @@ watch(() => props.show, (visible) => {
         <div class="bg-fallback"></div>
       </div>
 
-      <AudioVisualizer
-        :audio-el="props.audioEl ?? null"
-        :enabled="!!props.audioVisualizer && props.show"
-        :accent-color="props.accentColor || '#0078d4'"
-        :is-playing="props.isPlaying"
+      <PlayerDetailTopChrome
+        :is-visible="props.show"
+        :is-top-chrome-visible="isTopChromeVisible"
+        :is-maximised="isMaximised"
+        :is-fullscreen="isFullscreen"
+        :is-always-on-top="isAlwaysOnTop"
+        :stagger-style="(phase, dir, dist) => staggerStyle(props.show, phase, dir, dist)"
+        @close="handleClose"
+        @minimize="minimize"
+        @toggle-maximize="toggleMaximize"
+        @toggle-fullscreen="toggleFullscreen"
+        @toggle-always-on-top="toggleAlwaysOnTop"
+        @close-app="closeApp"
+        @show-top-chrome="showTopChrome"
+        @top-chrome-leave="handleTopChromeLeave"
       />
 
-      <div class="detail-content">
-        <PlayerDetailTopChrome
-          :is-visible="props.show"
-          :is-top-chrome-visible="isTopChromeVisible"
-          :is-maximised="isMaximised"
-          :is-fullscreen="isFullscreen"
-          :is-always-on-top="isAlwaysOnTop"
-          :stagger-style="(phase, dir, dist) => staggerStyle(props.show, phase, dir, dist)"
-          @close="handleClose"
-          @minimize="minimize"
-          @toggle-maximize="toggleMaximize"
-          @toggle-fullscreen="toggleFullscreen"
-          @toggle-always-on-top="toggleAlwaysOnTop"
-          @close-app="closeApp"
-          @show-top-chrome="showTopChrome"
-          @top-chrome-leave="handleTopChromeLeave"
-        />
+      <PlayerDetailLeft
+        :cover-url="props.coverUrl"
+        :is-playing="props.isPlaying"
+        :is-expanded="props.show"
+        :show-lyrics="positionLyrics"
+        :cover-transition="props.coverTransition ?? 'fade'"
+        @toggle-lyrics="toggleLyrics"
+      />
 
-        <PlayerDetailLeft
-          :cover-url="props.coverUrl"
-          :is-playing="props.isPlaying"
-          :is-expanded="props.show"
-          :show-lyrics="positionLyrics"
-          :cover-transition="props.coverTransition ?? 'fade'"
-          @toggle-lyrics="toggleLyrics"
-        />
-
-        <PlayerDetailLyrics
-          :lyrics="props.lyrics"
-          :current-time="props.currentTime"
-          :show="showLyrics && !props.hideLyrics"
-          :is-playing="props.isPlaying"
-          :is-fullscreen="isFullscreen"
-          @seek="emit('seek', $event)"
-        />
-      </div>
+      <PlayerDetailLyrics
+        :lyrics="props.lyrics"
+        :current-time="props.currentTime"
+        :show="showLyrics && !props.hideLyrics"
+        :is-playing="props.isPlaying"
+        :is-fullscreen="isFullscreen"
+        @seek="emit('seek', $event)"
+      />
     </div>
   </div>
 </template>
@@ -191,19 +175,9 @@ watch(() => props.show, (visible) => {
 .bg-wrapper {
   position: absolute;
   inset: 0;
-  z-index: 0;
   opacity: 0;
   transform: translateY(100%);
   transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.detail-content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex: 1;
-  height: 100vh;
-  flex-direction: column;
 }
 
 .bg-wrapper.visible {
