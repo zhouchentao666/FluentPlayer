@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, inject, type Ref } from 'vue'
 import PlayerDetailBackground from './PlayerDetailBackground.vue'
 import PlayerDetailLeft from './PlayerDetailLeft.vue'
 import PlayerDetailTopChrome from './PlayerDetailTopChrome.vue'
 import PlayerDetailLyrics from './PlayerDetailLyrics.vue'
+import AudioVisualizer from './AudioVisualizer.vue'
 import { usePlayerDetail } from '../../composables/usePlayerDetail'
 import type { Song } from '../../types'
 import type { LyricLine } from '../../composables/useLyrics'
@@ -47,6 +48,11 @@ const {
 
 const showLyrics = ref(false)
 const positionLyrics = ref(false)
+
+// 音频可视化（注入 App 提供的 AnalyserNode 与 settings）
+const audioAnalyser = inject<Ref<AnalyserNode | null> | null>('audioAnalyser', null)
+const settings = inject<any>('settings', null)
+const visualizerOn = computed(() => Boolean(settings?.value?.audioVisualizer))
 
 const handleClose = () => emit('close')
 
@@ -138,6 +144,17 @@ watch(() => props.show, (visible) => {
         :is-fullscreen="isFullscreen"
         @seek="emit('seek', $event)"
       />
+
+      <div v-if="visualizerOn && props.show" class="detail-visualizer">
+        <AudioVisualizer
+          v-if="audioAnalyser"
+          :analyser="audioAnalyser.value"
+          :playing="props.isPlaying"
+          :bars="72"
+          height="64px"
+        />
+        <AudioVisualizer v-else :playing="false" :bars="72" height="64px" />
+      </div>
     </div>
   </div>
 </template>
@@ -190,5 +207,16 @@ watch(() => props.show, (visible) => {
   inset: 0;
   z-index: -1;
   background: #0a0a0a;
+}
+
+.detail-visualizer {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  width: min(680px, 70vw);
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: 2;
 }
 </style>

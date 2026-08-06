@@ -221,6 +221,12 @@ function manualCheckUpdate() {
             @update:model-value="value => update({ immersivePlayerBar: value })"
           />
         </SettingRow>
+        <SettingRow label="音频可视化" description="在播放界面显示随音乐跳动的频谱条（默认开启）">
+          <ToggleSwitch
+            :model-value="settings.audioVisualizer"
+            @update:model-value="value => update({ audioVisualizer: value })"
+          />
+        </SettingRow>
         <SettingRow label="歌词文字大小" description="全屏播放器歌词字号（像素）">
           <SettingSlider
             :min="12"

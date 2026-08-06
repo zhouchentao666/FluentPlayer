@@ -111,6 +111,8 @@ export interface AppSettings {
   checkUpdateOnLaunch: boolean
   /** 是否把播放信息同步到系统媒体控制中心（SMTC / MediaSession）。 */
   systemMediaControl: boolean
+  /** 播放界面音频可视化（频谱条），默认开启。 */
+  audioVisualizer: boolean
   windowEffect: WindowEffect
   customImagePath: string
   customImageOpacity: number
@@ -220,6 +222,7 @@ export function useConfig(
           downloadFolder: typeof (config.settings as unknown as Record<string, unknown>).downloadFolder === 'string' ? ((config.settings as unknown as Record<string, unknown>).downloadFolder as string) : '',
           checkUpdateOnLaunch: ((config.settings as unknown as Record<string, unknown>).checkUpdateOnLaunch as boolean) ?? true,
           systemMediaControl: ((config.settings as unknown as Record<string, unknown>).systemMediaControl as boolean) ?? true,
+          audioVisualizer: ((config.settings as unknown as Record<string, unknown>).audioVisualizer as boolean) ?? true,
           windowEffect: (config.settings.windowEffect as WindowEffect) || 'acrylic',
           customImagePath: config.settings.customImagePath || '',
           customImageOpacity: hasEffect ? (config.settings.customImageOpacity ?? 35) : 35,

@@ -92,6 +92,11 @@ onMounted(async () => {
   // 启动后即初始化在线音源，使音源 handler 尽快就绪，
   // 避免用户首次进入在线视图播放时因初始化未完成而误判为“无音源”。
   void useOnlineSources().initOnlineSources().catch(() => {})
+  // 初始化音频可视化（需等 <audio> 挂载）
+  setupAudioAnalyser()
+  if (audioRef.value) {
+    audioRef.value.addEventListener('play', resumeAnalyser)
+  }
 })
 onUnmounted(() => {
   unlistenDrag?.()
@@ -99,6 +104,36 @@ onUnmounted(() => {
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
 const audioRef = ref<HTMLAudioElement | null>(null)
+
+// 音频可视化：单一 AudioContext + AnalyserNode，挂在原生 <audio> 上，
+// 通过 provide/inject 共享给播放器组件。
+const audioAnalyser = ref<AnalyserNode | null>(null)
+let audioContext: AudioContext | null = null
+function setupAudioAnalyser() {
+  const el = audioRef.value
+  if (!el || audioContext) return
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    audioContext = new Ctx()
+    const source = audioContext.createMediaElementSource(el)
+    const analyser = audioContext.createAnalyser()
+    analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.8
+    source.connect(analyser)
+    analyser.connect(audioContext.destination)
+    audioAnalyser.value = analyser
+  } catch {
+    audioContext = null
+    audioAnalyser.value = null
+  }
+}
+function resumeAnalyser() {
+  if (audioContext && audioContext.state === 'suspended') {
+    void audioContext.resume().catch(() => {})
+  }
+}
+provide('audioAnalyser', audioAnalyser)
 const showPlayerDetail = ref(false)
 const showQueue = ref(false)
 const playMode = ref<PlayMode>('sequential')
@@ -138,6 +173,7 @@ const settings = ref<AppSettings>({
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
+  audioVisualizer: true,
 })
 
 const playbackState = ref<ConfigPlayback>({
