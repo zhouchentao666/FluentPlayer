@@ -111,8 +111,6 @@ export interface AppSettings {
   checkUpdateOnLaunch: boolean
   /** 是否把播放信息同步到系统媒体控制中心（SMTC / MediaSession）。 */
   systemMediaControl: boolean
-  /** 播放界面音频可视化（频谱条），默认开启。 */
-  audioVisualizer: boolean
   windowEffect: WindowEffect
   customImagePath: string
   customImageOpacity: number
@@ -121,6 +119,8 @@ export interface AppSettings {
   songColorBlur: number
   fullScreenBackground: FullScreenBackground
   coverTransition: CoverTransition
+  /** 全屏播放器是否显示音频可视化（默认开）。 */
+  audioVisualizer: boolean
   immersivePlayerBar: boolean
   lyricFontSize: number
   lyricFontFamily: string
@@ -222,7 +222,6 @@ export function useConfig(
           downloadFolder: typeof (config.settings as unknown as Record<string, unknown>).downloadFolder === 'string' ? ((config.settings as unknown as Record<string, unknown>).downloadFolder as string) : '',
           checkUpdateOnLaunch: ((config.settings as unknown as Record<string, unknown>).checkUpdateOnLaunch as boolean) ?? true,
           systemMediaControl: ((config.settings as unknown as Record<string, unknown>).systemMediaControl as boolean) ?? true,
-          audioVisualizer: ((config.settings as unknown as Record<string, unknown>).audioVisualizer as boolean) ?? true,
           windowEffect: (config.settings.windowEffect as WindowEffect) || 'acrylic',
           customImagePath: config.settings.customImagePath || '',
           customImageOpacity: hasEffect ? (config.settings.customImageOpacity ?? 35) : 35,
@@ -231,6 +230,7 @@ export function useConfig(
           songColorBlur: hasEffect ? (config.settings.songColorBlur ?? 30) : 30,
           fullScreenBackground: (config.settings.fullScreenBackground as FullScreenBackground) || 'static',
           coverTransition: ((config.settings as unknown as Record<string, unknown>).coverTransition as CoverTransition) || 'fade',
+          audioVisualizer: ((config.settings as unknown as Record<string, unknown>).audioVisualizer as boolean) ?? true,
           immersivePlayerBar: config.settings.immersivePlayerBar ?? false,
           lyricFontSize: typeof config.settings.lyricFontSize === 'number' && config.settings.lyricFontSize > 0 ? config.settings.lyricFontSize : 36,
           lyricFontFamily: typeof config.settings.lyricFontFamily === 'string' ? config.settings.lyricFontFamily : '',

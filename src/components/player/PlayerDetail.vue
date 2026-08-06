@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch, onMounted, inject, type Ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import PlayerDetailBackground from './PlayerDetailBackground.vue'
 import PlayerDetailLeft from './PlayerDetailLeft.vue'
 import PlayerDetailTopChrome from './PlayerDetailTopChrome.vue'
@@ -21,6 +21,12 @@ const props = defineProps<{
   immersivePlayerBar?: boolean
   coverTransition?: 'fade' | 'slide-left' | 'slide-both'
   hideLyrics?: boolean
+  /** 共享的音频元素，用于音频可视化。 */
+  audioEl?: HTMLAudioElement | null
+  /** 强调色，用于可视化频谱着色。 */
+  accentColor?: string
+  /** 是否显示音频可视化。 */
+  audioVisualizer?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,11 +54,6 @@ const {
 
 const showLyrics = ref(false)
 const positionLyrics = ref(false)
-
-// 音频可视化（注入 App 提供的 AnalyserNode 与 settings）
-const audioAnalyser = inject<Ref<AnalyserNode | null> | null>('audioAnalyser', null)
-const settings = inject<any>('settings', null)
-const visualizerOn = computed(() => Boolean(settings?.value?.audioVisualizer))
 
 const handleClose = () => emit('close')
 
@@ -110,50 +111,48 @@ watch(() => props.show, (visible) => {
         <div class="bg-fallback"></div>
       </div>
 
-      <PlayerDetailTopChrome
-        :is-visible="props.show"
-        :is-top-chrome-visible="isTopChromeVisible"
-        :is-maximised="isMaximised"
-        :is-fullscreen="isFullscreen"
-        :is-always-on-top="isAlwaysOnTop"
-        :stagger-style="(phase, dir, dist) => staggerStyle(props.show, phase, dir, dist)"
-        @close="handleClose"
-        @minimize="minimize"
-        @toggle-maximize="toggleMaximize"
-        @toggle-fullscreen="toggleFullscreen"
-        @toggle-always-on-top="toggleAlwaysOnTop"
-        @close-app="closeApp"
-        @show-top-chrome="showTopChrome"
-        @top-chrome-leave="handleTopChromeLeave"
-      />
-
-      <PlayerDetailLeft
-        :cover-url="props.coverUrl"
+      <AudioVisualizer
+        :audio-el="props.audioEl ?? null"
+        :enabled="!!props.audioVisualizer && props.show"
+        :accent-color="props.accentColor || '#0078d4'"
         :is-playing="props.isPlaying"
-        :is-expanded="props.show"
-        :show-lyrics="positionLyrics"
-        :cover-transition="props.coverTransition ?? 'fade'"
-        @toggle-lyrics="toggleLyrics"
       />
 
-      <PlayerDetailLyrics
-        :lyrics="props.lyrics"
-        :current-time="props.currentTime"
-        :show="showLyrics && !props.hideLyrics"
-        :is-playing="props.isPlaying"
-        :is-fullscreen="isFullscreen"
-        @seek="emit('seek', $event)"
-      />
-
-      <div v-if="visualizerOn && props.show" class="detail-visualizer">
-        <AudioVisualizer
-          v-if="audioAnalyser"
-          :analyser="audioAnalyser.value"
-          :playing="props.isPlaying"
-          :bars="72"
-          height="64px"
+      <div class="detail-content">
+        <PlayerDetailTopChrome
+          :is-visible="props.show"
+          :is-top-chrome-visible="isTopChromeVisible"
+          :is-maximised="isMaximised"
+          :is-fullscreen="isFullscreen"
+          :is-always-on-top="isAlwaysOnTop"
+          :stagger-style="(phase, dir, dist) => staggerStyle(props.show, phase, dir, dist)"
+          @close="handleClose"
+          @minimize="minimize"
+          @toggle-maximize="toggleMaximize"
+          @toggle-fullscreen="toggleFullscreen"
+          @toggle-always-on-top="toggleAlwaysOnTop"
+          @close-app="closeApp"
+          @show-top-chrome="showTopChrome"
+          @top-chrome-leave="handleTopChromeLeave"
         />
-        <AudioVisualizer v-else :playing="false" :bars="72" height="64px" />
+
+        <PlayerDetailLeft
+          :cover-url="props.coverUrl"
+          :is-playing="props.isPlaying"
+          :is-expanded="props.show"
+          :show-lyrics="positionLyrics"
+          :cover-transition="props.coverTransition ?? 'fade'"
+          @toggle-lyrics="toggleLyrics"
+        />
+
+        <PlayerDetailLyrics
+          :lyrics="props.lyrics"
+          :current-time="props.currentTime"
+          :show="showLyrics && !props.hideLyrics"
+          :is-playing="props.isPlaying"
+          :is-fullscreen="isFullscreen"
+          @seek="emit('seek', $event)"
+        />
       </div>
     </div>
   </div>
@@ -192,9 +191,19 @@ watch(() => props.show, (visible) => {
 .bg-wrapper {
   position: absolute;
   inset: 0;
+  z-index: 0;
   opacity: 0;
   transform: translateY(100%);
   transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detail-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  height: 100vh;
+  flex-direction: column;
 }
 
 .bg-wrapper.visible {
@@ -207,16 +216,5 @@ watch(() => props.show, (visible) => {
   inset: 0;
   z-index: -1;
   background: #0a0a0a;
-}
-
-.detail-visualizer {
-  position: absolute;
-  left: 50%;
-  bottom: 104px;
-  transform: translateX(-50%);
-  width: min(680px, 70vw);
-  pointer-events: none;
-  opacity: 0.9;
-  z-index: 2;
 }
 </style>

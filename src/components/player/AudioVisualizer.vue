@@ -1,140 +1,233 @@
-<script setup lang="ts">
-/**
- * 音频可视化频谱条（参考 LyciaMusic-main 的 AudioVisualizer）。
- * 不同于 Lycia（后端 playbackApi 采样），FluentPlayer 的音频由前端 Web Audio 播放，
- * 故直接用 AnalyserNode.getByteFrequencyData 做实时 FFT 频谱，无需后端改动。
- */
-import { ref, onMounted, onBeforeUnmount, watch, inject, type Ref } from 'vue'
+<script lang="ts" setup>
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { getAudioVisualizerSamples, getIdleSamples, sampleToHeight } from './audioVisualizerMath'
 
-const props = withDefaults(
-  defineProps<{
-    /** 分析节点；为空时显示静态平条。 */
-    analyser?: AnalyserNode | null
-    /** 是否正在播放，用于决定是否滚动动画。 */
-    playing?: boolean
-    /** 柱状数量（默认 64）。 */
-    bars?: number
-    /** 柱高（CSS 高度）。 */
-    height?: string
-  }>(),
-  { analyser: null, playing: true, bars: 64, height: '56px' },
-)
+const props = defineProps<{
+  /** 共享的 <audio> 元素，用于接入 Web Audio 分析节点。 */
+  audioEl: HTMLAudioElement | null
+  /** 是否启用可视化。 */
+  enabled: boolean
+  /** 强调色（十六进制），用于频谱着色。 */
+  accentColor?: string
+  /** 当前是否正在播放。 */
+  isPlaying?: boolean
+}>()
 
-// 若未显式传入 analyser，则从 App 注入
-const injected = inject<Ref<AnalyserNode | null> | null>('audioAnalyser', null)
-const activeAnalyser = () => props.analyser ?? injected?.value ?? null
+const BAR_COUNT = 64
+const canvasRef = ref<HTMLCanvasElement | null>(null)
 
-const canvas = ref<HTMLCanvasElement | null>(null)
+let audioCtx: AudioContext | null = null
+let analyser: AnalyserNode | null = null
+let sourceNode: MediaElementAudioSourceNode | null = null
+let dataArray: Uint8Array<ArrayBuffer> | null = null
 let rafId = 0
-let freqData: Uint8Array | null = null
+// 上次真实样本是否全为 0（CORS 阻断等情况），用于切换到伪频谱。
+let lastRealActive = false
 
-function resize() {
-  const el = canvas.value
-  if (!el) return
+const accent = computed(() => props.accentColor || '#0078d4')
+
+function ensureAudioGraph() {
+  if (!props.audioEl || analyser) return
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    audioCtx = new Ctx()
+    analyser = audioCtx.createAnalyser()
+    analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.8
+    dataArray = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
+    // 将 <audio> 接入分析节点。createMediaElementSource 会把音频输出重定向到图内，
+    // 因此必须再连到 destination，否则会没有声音。
+    sourceNode = audioCtx.createMediaElementSource(props.audioEl)
+    sourceNode.connect(analyser)
+    analyser.connect(audioCtx.destination)
+  } catch {
+    // 创建失败（如已被其它地方接管、或浏览器限制）时静默降级为伪频谱。
+    analyser = null
+  }
+}
+
+function resumeIfNeeded() {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {})
+  }
+}
+
+function readRawSamples(): number[] {
+  if (analyser && dataArray) {
+    analyser.getByteFrequencyData(dataArray)
+    const sum = dataArray.reduce((a, b) => a + b, 0)
+    lastRealActive = sum > 0
+    // 取低中频段（高频能量低，跳过上半部分让条形更富表现力）。
+    const usable = Math.floor(dataArray.length * 0.72)
+    const step = usable / BAR_COUNT
+    const out: number[] = []
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const idx = Math.floor(i * step)
+      out.push(dataArray[idx] / 255)
+    }
+    return out
+  }
+  lastRealActive = false
+  return []
+}
+
+function render() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
   const dpr = window.devicePixelRatio || 1
-  const w = el.clientWidth
-  const h = el.clientHeight
-  el.width = Math.max(1, Math.floor(w * dpr))
-  el.height = Math.max(1, Math.floor(h * dpr))
-  const ctx = el.getContext('2d')
-  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-}
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+    canvas.width = Math.floor(w * dpr)
+    canvas.height = Math.floor(h * dpr)
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, w, h)
 
-function accentColor(): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--fluent-accent')
-  return v ? v.trim() : '#0078d4'
-}
+  const playing = props.isPlaying ?? false
+  let raw = playing ? readRawSamples() : []
 
-function draw() {
-  const el = canvas.value
-  const ctx = el?.getContext('2d')
-  if (!el || !ctx) return
-  const w = el.clientWidth
-  const h = el.clientHeight
-  const analyser = activeAnalyser()
-  const n = props.bars
-  const gap = 2
-  const barW = (w - gap * (n - 1)) / n
-
-  // 取实时频谱
-  let values: number[]
-  if (analyser && props.playing) {
-    if (!freqData || freqData.length !== analyser.frequencyBinCount) {
-      freqData = new Uint8Array(analyser.frequencyBinCount)
-    }
-    analyser.getByteFrequencyData(freqData)
-    // 只取低中频段（高频通常没能量），映射到 n 根柱
-    const usable = Math.floor(analyser.frequencyBinCount * 0.7)
-    values = []
-    for (let i = 0; i < n; i++) {
-      const idx = Math.floor((i / n) * usable)
-      values.push(freqData[idx] / 255)
-    }
-  } else {
-    // 静态：中间略高、两侧低的平条
-    values = Array.from({ length: n }, (_, i) => {
-      const t = i / (n - 1)
-      return 0.12 + 0.08 * Math.sin(t * Math.PI)
-    })
+  // 真实数据全为 0（CORS 阻断 / 无分析节点）且仍在播放时，使用柔和的伪频谱。
+  if (raw.length === 0) {
+    raw = getIdleSamples(BAR_COUNT, performance.now())
+  } else if (!lastRealActive && playing) {
+    // 有节点但无真实能量：混入伪频谱，避免完全静止。
+    const idle = getIdleSamples(BAR_COUNT, performance.now())
+    raw = raw.map((v, i) => (v > 0.02 ? v : idle[i]))
   }
 
-  ctx.clearRect(0, 0, w, h)
-  const color = accentColor()
-  for (let i = 0; i < n; i++) {
-    const v = Math.max(0.04, values[i])
-    const bh = v * h
+  const samples = getAudioVisualizerSamples(raw)
+
+  const gap = Math.max(2, w / BAR_COUNT * 0.28)
+  const barW = (w - gap * (BAR_COUNT - 1)) / BAR_COUNT
+  const baseY = h
+
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const value = sampleToHeight(samples[i])
+    const barH = Math.max(2, value * (h * 0.92))
     const x = i * (barW + gap)
-    const y = (h - bh) / 2
-    const radius = Math.min(barW / 2, 3)
-    ctx.fillStyle = color
-    ctx.globalAlpha = 0.55 + 0.45 * v
-    roundRect(ctx, x, y, barW, bh, radius)
+    const y = baseY - barH
+
+    const grad = ctx.createLinearGradient(0, baseY, 0, y)
+    grad.addColorStop(0, hexToRgba(accent.value, 0.35))
+    grad.addColorStop(1, hexToRgba(accent.value, 0.95))
+
+    const radius = Math.min(barW / 2, 4)
+    ctx.fillStyle = grad
+    roundedTopRect(ctx, x, y, barW, barH, radius)
     ctx.fill()
   }
-  ctx.globalAlpha = 1
 
-  // 播放中持续刷新；静态时也轻量刷新（alpha 随时间微动）
-  rafId = requestAnimationFrame(draw)
+  rafId = requestAnimationFrame(render)
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  const rr = Math.min(r, w / 2, h / 2)
+function roundedTopRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath()
-  ctx.moveTo(x + rr, y)
-  ctx.arcTo(x + w, y, x + w, y + h, rr)
-  ctx.arcTo(x + w, y + h, x, y + h, rr)
-  ctx.arcTo(x, y + h, x, y, rr)
-  ctx.arcTo(x, y, x + w, y, rr)
+  ctx.moveTo(x, y + h)
+  ctx.lineTo(x, y + r)
+  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.lineTo(x + w - r, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+  ctx.lineTo(x + w, y + h)
   ctx.closePath()
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  let h = hex.replace('#', '')
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+  const r = parseInt(h.slice(0, 2), 16) || 0
+  const g = parseInt(h.slice(2, 4), 16) || 0
+  const b = parseInt(h.slice(4, 6), 16) || 0
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function start() {
+  if (rafId) return
+  rafId = requestAnimationFrame(render)
+}
+
+function stop() {
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
+}
+
+function teardown() {
+  stop()
+  try {
+    sourceNode?.disconnect()
+    analyser?.disconnect()
+  } catch {
+    /* ignore */
+  }
+  sourceNode = null
+  analyser = null
+  if (audioCtx) {
+    audioCtx.close().catch(() => {})
+    audioCtx = null
+  }
+  dataArray = null
+}
+
 watch(
-  () => [props.analyser, injected?.value, props.playing],
-  () => {
-    // 参数变化无需重启循环，draw 每帧都会重读
+  () => [props.enabled, props.audioEl] as const,
+  ([enabled, el]) => {
+    if (enabled && el) {
+      ensureAudioGraph()
+      resumeIfNeeded()
+      start()
+    } else {
+      stop()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.isPlaying,
+  (playing) => {
+    if (playing) resumeIfNeeded()
   },
 )
 
 onMounted(() => {
-  resize()
-  window.addEventListener('resize', resize)
-  rafId = requestAnimationFrame(draw)
+  if (props.enabled && props.audioEl) {
+    ensureAudioGraph()
+    start()
+  }
 })
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(rafId)
-  window.removeEventListener('resize', resize)
+  teardown()
 })
+
+// 暴露给父组件：在用户手势（如点击播放）时解锁音频上下文。
+defineExpose({ ensureAudioGraph, resumeIfNeeded })
 </script>
 
 <template>
-  <canvas ref="canvas" class="audio-visualizer" :style="{ height }"></canvas>
+  <canvas
+    v-show="enabled"
+    ref="canvasRef"
+    class="audio-visualizer"
+  ></canvas>
 </template>
 
 <style scoped>
 .audio-visualizer {
-  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100%;
+  height: 120px;
   pointer-events: none;
+  z-index: 1;
+  opacity: 0.9;
 }
 </style>

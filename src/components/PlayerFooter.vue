@@ -1,12 +1,11 @@
 <script lang="ts" setup>
 import { type Song } from '../types'
-import { ref, computed, inject, type Ref } from 'vue'
+import { ref, computed } from 'vue'
 import ProgressBar from './player/ProgressBar.vue'
 import SongInfo from './player/SongInfo.vue'
 import PlayerControls, { type PlayMode } from './player/PlayerControls.vue'
 import VolumeControl from './player/VolumeControl.vue'
 import PlaybackRateControl from './player/PlaybackRateControl.vue'
-import AudioVisualizer from './player/AudioVisualizer.vue'
 import { activeQuality } from '@online/player'
 import { qualityLevelsFor, QUALITY_SHORT } from '@online/lib/quality'
 import type { Quality } from '@online/types/music'
@@ -45,11 +44,6 @@ const emit = defineEmits<{
 
 // 在线音乐才显示音质 / 评论
 const isOnline = computed(() => !!props.currentSong?.online)
-
-// 音频可视化（注入 App 提供的 AnalyserNode 与 settings）
-const audioAnalyser = inject<Ref<AnalyserNode | null> | null>('audioAnalyser', null)
-const settings = inject<any>('settings', null)
-const visualizerOn = computed(() => Boolean(settings?.value?.audioVisualizer))
 
 const qualityLevels = computed<Quality[]>(() => {
   const src = props.currentSong?.online?.source
@@ -102,17 +96,6 @@ if (typeof window !== 'undefined') {
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   >
-    <div v-if="visualizerOn" class="footer-visualizer">
-      <AudioVisualizer
-        v-if="audioAnalyser"
-        :analyser="audioAnalyser.value"
-        :playing="isPlaying"
-        :bars="56"
-        height="32px"
-      />
-      <AudioVisualizer v-else :playing="false" :bars="56" height="32px" />
-    </div>
-
     <ProgressBar
       :current-time="currentTime"
       :duration="duration"
@@ -219,26 +202,6 @@ if (typeof window !== 'undefined') {
   background: transparent;
   border-top-color: transparent;
   backdrop-filter: none;
-}
-
-/* 底部播放条音频可视化：作为背景层覆盖整条 footer，不拦截交互 */
-.footer-visualizer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: -1;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
-  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
-  -webkit-mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
-}
-.player-footer.detail-mode .footer-visualizer {
-  opacity: 0.85;
 }
 
 .footer-content {
