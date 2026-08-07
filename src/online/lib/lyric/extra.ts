@@ -3,7 +3,6 @@ import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
-import { convertLrcFormat } from "../../../utils/lyricConverter"
 
 // js-md5 CommonJS/ESM interop (same pattern as src/lib/search/mg.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +49,17 @@ function decodeName(str: string | null | undefined): string {
   return (
     str?.replace(/(?:&amp;|&lt;|&gt;|&quot;|&apos;|&#039;|&nbsp;)/gm, (s) => ENTITY_MAP[s]) ?? ""
   )
+}
+
+// 毫秒 -> lrc-a2 时间标签 mm:ss.xx（用于逐字相对偏移）
+function formatKrcTimestamp(timeMs: number): string {
+  const totalMs = Math.floor(timeMs)
+  const ms = totalMs % 1000
+  const totalSec = (totalMs - ms) / 1000
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, "0")
+  const ss = String(totalSec % 60).padStart(2, "0")
+  const xx = String(ms).padStart(3, "0")
+  return `${mm}:${ss}.${xx}`
 }
 
 // --- tx (QQ音乐) ---------------------------------------------------------
@@ -239,21 +249,31 @@ function decodeKrc(content: string): LyricInfo | null {
     // 纯 LRC：去掉所有字时间标记。
     const words = decoded.replace(/<\d+,\d+,\d+>/g, "")
     lrcLines.push(`${tag}${words}`)
-    // 逐字：krc 字时间为相对毫秒 <off,dur,wd>，AMLL 的 lrc-a2 要求 <mm:ss.xx> 绝对时间。
-    // 这里把尖括号改成圆括号 (off,dur,wd)，并以行起始毫秒为基准拼成 convertLrcFormat
-    // 能识别的「[行起始毫秒,0](off,dur,wd)字」行，最后统一转成标准 lrc-a2。
+    // 逐字：标准 krc 字时间为 <off,dur,wd>字（字在尖括号外，相对行首毫秒偏移，
+    // wd 为数字占位；参考 seraphine parseKrcLyric）。直接产出 AMLL 标准 lrc-a2
+    // 行内 <相对偏移 mm:ss.xx>字，行首为绝对起始时间。
     const baseMs = time * 1000 + ms
-    const a2body = decoded.replace(/<(\d+),(\d+),([^<>]*)>/g, "($1,$2,$3)")
-    lyricxLines.push(a2body.includes("(") ? `[${baseMs},0]${a2body}` : `${tag}${a2body}`)
+    const wordReg = /<(\d+),(\d+),\d+>([^<]*)/g
+    let a2 = ""
+    let last = 0
+    let wm: RegExpExecArray | null
+    while ((wm = wordReg.exec(decoded)) !== null) {
+      const off = parseInt(wm[1], 10)
+      const wd = wm[3] // 字文本（尖括号外）
+      a2 += decoded.slice(last, wm.index) // 尖括号前的纯文本
+      a2 += `<${formatKrcTimestamp(off)}>${wd}`
+      last = wm.index + wm[0].length
+    }
+    a2 += decoded.slice(last)
+    lyricxLines.push(a2.trim() ? `${tag}${a2}` : `${tag}${decoded}`)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
   const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
-  // 统一转换逐字为 AMLL 标准 lrc-a2（<mm:ss.xx>字）。
-  const rawLx = lyricxLines.join("\n")
-  const lxlyric = rawLx.includes("(") ? convertLrcFormat(rawLx) : rawLx
+  // decodeKrc 已直接产出 AMLL 标准 lrc-a2（<mm:ss.xx>字，字在尖括号外）。
+  const lxlyric = lyricxLines.join("\n")
   return {
     lyric,
     lxlyric: lxlyric.trim() ? lxlyric : null,

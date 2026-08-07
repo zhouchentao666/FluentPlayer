@@ -80,13 +80,13 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
   const threadId = `R_SO_4_${songId}`
-  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor 翻页（非 page 偏移）。
-  // cursor 为毫秒时间戳：首页必须传 0（传 Date.now() 会请求当前时间之后的评论，
-  // 导致首页拿不到数据）；翻页用上一次响应返回的 data.cursor（[prev, next] 数组的 next）。
-  // 重新打开评论（page<=1）时清空缓存的游标，避免复用上次会话的旧游标。
+  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor 翻页。
+  // 参考 lx-music（CeruMusic）：首页 cursor 必须为当前毫秒时间戳 Date.now()，
+  // 传 0 会导致接口返回空/失败；翻页用上一次响应返回的 data.cursor。
+  // 重新打开评论（page<=1）时清空缓存的游标。
   if (page <= 1) (song as any).__wyCursor = null
-  const prevCursor: number | null = (song as any).__wyCursor ?? null
-  const cursor = prevCursor ?? 0
+  const prevCursor: number | string | null = (song as any).__wyCursor ?? null
+  const cursor = prevCursor ?? Date.now()
   const body = weapi(
     {
       rid: threadId,
@@ -94,7 +94,7 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
       cursor: String(cursor),
       offset: "0",
       orderType: 1,
-      pageNo: "1",
+      pageNo: page,
       pageSize: String(limit),
       csrf_token: "",
     },
