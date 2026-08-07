@@ -52,8 +52,9 @@ const KW_KEY = new TextEncoder().encode("yeelion") // 7 bytes
 
 // XOR `params` with the rolling "yeelion" key, base64-encode (buildParams).
 function kwBuildParams(id: string): string {
-  // isGetLyricx omitted (=> plain LRC form; see kwDecodeLyric).
-  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}`
+  // isGetLyricx=1 让酷我返回逐字 (lyricx) 歌词：body 为 base64 文本，解码后
+  // XOR 0x64 再 GB18030 解码得到带 <-?\d+,-?\d+> 字时间标记的 LRC（见 kwDecodeLyric）。
+  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}&isGetLyricx=1`
   const src = new TextEncoder().encode(params)
   const out = new Uint8Array(src.length)
   let i = 0
@@ -71,33 +72,53 @@ function kwBuildParams(id: string): string {
   return btoa(binary)
 }
 
-// Decode the raw response bytes -> plain LRC text. Mirrors kw_decodeLyric.ts
-// with isGetLyricx=false: require the `tp=content` marker, drop the header up to
-// the blank line, zlib-inflate, then gb18030-decode. Returns "" on any mismatch.
+// Decode the raw response bytes -> plain LRC text (with per-word timing when
+// isGetLyricx=1). Mirrors kw_decodeLyric.ts:
+//   non-lyricx: `tp=content\r\n\r\n` + zlib-deflated GB18030 LRC
+//   lyricx:     `tp=content\r\n\r\n` + base64 text -> XOR 0x64 -> GB18030 LRC
+//               (the LRC carries <-?\d+,-?\d+> word-time marks for karaoke lyrics)
 function kwDecodeLyric(buf: Uint8Array): string {
   if (buf.length < 10) return ""
   // First 10 bytes must be the ASCII marker "tp=content".
   const head = new TextDecoder("utf-8").decode(buf.subarray(0, 10))
   if (head !== "tp=content") return ""
-  // Find the "\r\n\r\n" separator and inflate everything after it.
-  const sep = [0x0d, 0x0a, 0x0d, 0x0a]
-  let idx = -1
-  for (let i = 0; i + 4 <= buf.length; i++) {
-    if (buf[i] === sep[0] && buf[i + 1] === sep[1] && buf[i + 2] === sep[2] && buf[i + 3] === sep[3]) {
-      idx = i
-      break
+
+  // Read the rest as UTF-8 text so we can locate the "\r\n\r\n" boundary; the
+  // lyricx body is pure ASCII/base64 (safe to inspect), and the non-lyricx body
+  // is binary but the separator is still an ASCII 0x0d 0x0a 0x0d 0x0a run.
+  const tail = new TextDecoder("utf-8").decode(buf.subarray(10))
+  const sepIdx = tail.indexOf("\r\n\r\n")
+  if (sepIdx < 0) return ""
+  const headerPart = tail.slice(0, sepIdx)
+  const afterSep = buf.subarray(10 + sepIdx + 4)
+
+  // lyricx form: header contains `tp=content`, body is base64 (after sep).
+  if (/tp=content/.test(headerPart) && afterSep.every((b) => b < 0x80)) {
+    let b64 = ""
+    for (let i = 0; i < afterSep.length; i++) b64 += String.fromCharCode(afterSep[i])
+    try {
+      const bytes = b64ToUint8(b64.replace(/\s+/g, ""))
+      const xored = new Uint8Array(bytes.length)
+      for (let i = 0; i < bytes.length; i++) xored[i] = bytes[i] ^ 0x64
+      for (const enc of ["gb18030", "gbk", "utf-8"]) {
+        try {
+          return new TextDecoder(enc).decode(xored)
+        } catch {
+          // try next encoding
+        }
+      }
+    } catch {
+      // not valid base64 -> fall through to zlib path
     }
   }
-  if (idx < 0) return ""
-  const body = buf.subarray(idx + 4)
+
+  // Non-lyricx form: zlib-inflate the binary body, then gb18030-decode.
   let inflated: Uint8Array
   try {
-    inflated = pako.inflate(body)
+    inflated = pako.inflate(afterSep)
   } catch {
     return ""
   }
-  // gb18030 -> text (Chromium/WebView2 supports it). Fall back to gbk, then
-  // utf-8, so a missing-encoding environment still yields something.
   for (const enc of ["gb18030", "gbk", "utf-8"]) {
     try {
       return new TextDecoder(enc).decode(inflated)
@@ -106,6 +127,14 @@ function kwDecodeLyric(buf: Uint8Array): string {
     }
   }
   return ""
+}
+
+// base64 -> raw bytes (shared helper, mirrors lyric/extra.ts b64ToUint8).
+function b64ToUint8(str: string): Uint8Array {
+  const binary = atob(str)
+  const buf = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i)
+  return buf
 }
 
 // Split parsed LRC lines into lyric + translation. Mirrors kw/lyric.js
@@ -143,11 +172,13 @@ const KW_TIME_EXP = /^\[([\d:.]*)\]/
 const KW_EXIST_TIME_EXP = /\[\d{1,2}:.*\d{1,4}\]/
 const KW_WORD_TIME_ALL = /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g
 
-// Parse plain LRC text into { lyric, tlyric }. Mirrors kw/lyric.js parseLrc +
-// transformLrc, but emits only timestamped lines (no [ti:]/[ar:] tags needed).
+// Parse plain LRC text into { lyric, tlyric, lxlyric }. Mirrors kw/lyric.js
+// parseLrc + transformLrc, but keeps per-word timing (`<-?\d+,-?\d+>` from the
+// lyricx form) in `lxlyric` as AMLL lrc-a2 (`<start,dur>` word marks) so the
+// player can render karaoke-style word highlighting.
 function kwParseLrc(text: string): LyricInfo | null {
   const lines = text.split(/\r\n|\r|\n/)
-  const lrcArr: { time: string; text: string }[] = []
+  const lrcArr: { time: string; text: string; wordtime?: boolean }[] = []
   for (const raw of lines) {
     const line = raw.trim()
     const m = KW_TIME_EXP.exec(line)
@@ -155,7 +186,7 @@ function kwParseLrc(text: string): LyricInfo | null {
     let time = m[1]
     if (/\.\d\d$/.test(time)) time += "0"
     const body = line.replace(KW_TIME_EXP, "").trim()
-    lrcArr.push({ time, text: body })
+    lrcArr.push({ time, text: body, wordtime: KW_WORD_TIME_ALL.test(body) })
   }
   if (!lrcArr.length) return null
 
@@ -168,13 +199,26 @@ function kwParseLrc(text: string): LyricInfo | null {
 
   const toText = (list: { time: string; text: string }[]): string =>
     list.map((l) => `[${l.time}]${l.text}`).join("\n")
+  // 逐字：保留并规整字时间标记（去掉可选的第三个数，保留 <start,dur>）。
+  const toWordText = (list: { time: string; text: string }[]): string =>
+    list.map((l) => `[${l.time}]${l.text.replace(KW_WORD_TIME_ALL, (_, s, d) => `<${s},${d}>`)}`).join("\n")
 
   let lyric = toText(parts.lrc).replace(KW_WORD_TIME_ALL, "")
   if (!KW_EXIST_TIME_EXP.test(lyric)) return null
   let tlyric = parts.lrcT.length ? toText(parts.lrcT).replace(KW_WORD_TIME_ALL, "") : ""
+  const hasWordTime = lrcArr.some((l) => l.wordtime)
+  const lxlyric = hasWordTime
+    ? toWordText(parts.lrc)
+        .replace(KW_WORD_TIME_ALL, (_, s, d) => `<${s},${d}>`)
+        .trim()
+    : ""
   lyric = lyric.trim()
   tlyric = tlyric.trim()
-  return { lyric, tlyric: tlyric || null }
+  return {
+    lyric,
+    tlyric: tlyric || null,
+    lxlyric: lxlyric || null,
+  }
 }
 
 async function getKwLyricEncrypted(songId: string): Promise<LyricInfo | null> {

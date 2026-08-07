@@ -58,13 +58,15 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
   const picFromSearch = raw.web_albumpic_short
     ? `https://img1.kuwo.cn/star/albumcover/${raw.web_albumpic_short}`
     : null
-  // 搜索结果自带 pic 字段（完整 URL，如 http://img4.kuwo.cn/...）优先使用，
-  // 缺失时退回 albumcover 缩略图，都缺失则留空给 getKwCoverUrl 用 rid 补。
-  const picFromRaw = raw.pic?.startsWith("http")
-    ? raw.pic
-    : raw.pic
-      ? `https://www.kuwo.cn${raw.pic}`
-      : null
+  // 搜索结果自带 pic 字段常为「//www.kuwo.cn/...」(无协议双斜杠) 或完整 http(s) URL。
+  // 无协议时只补 https: 协议，不能拼成 https://www.kuwo.cn//www.kuwo.cn/... 这样的错误地址。
+  const picFromRaw = raw.pic
+    ? raw.pic.startsWith("http")
+      ? raw.pic
+      : raw.pic.startsWith("//")
+        ? `https:${raw.pic}`
+        : `https://www.kuwo.cn${raw.pic}`
+    : null
   return {
     id: `kw_${songId}`,
     name: decodeKwName(raw.SONGNAME),
@@ -98,11 +100,11 @@ async function getKwCoverUrl(songId: string): Promise<string> {
       },
     })
     if (!res.ok) return ""
-    const data = (await res.json()) as any
-    const pic = data?.url ?? data?.pic ?? ""
-    if (!pic) return ""
-    // 返回的相对/绝对地址统一走 kuwo 域名。
-    return pic.startsWith("http") ? pic : `https://www.kuwo.cn${pic}`
+    // artistpicserver.kuwo.cn/pic.web 直接返回纯文本图片 URL（非 JSON），
+    // 早期用 res.json() 取 data.url 永远为空，导致酷我封面缺失。改用 res.text()。
+    const text = (await res.text()).trim()
+    if (!text || !/^https?:\/\//i.test(text)) return ""
+    return text
   } catch {
     return ""
   }

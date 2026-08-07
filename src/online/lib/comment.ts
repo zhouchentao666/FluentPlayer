@@ -80,10 +80,12 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
   const threadId = `R_SO_4_${songId}`
-  // 网易云评论分页：新版接口使用 cursor + orderType + pageNo + pageSize。
-  // 旧版的 offset/limit/before 写法服务端已不稳定，空 before 会导致接口报错。
-  // orderType: 1=按推荐排序, 2=最热, 3=最新。cursor 为上一页返回的游标（首页为 0）。
-  const cursor = Number((song as any).__wyCursor ?? 0)
+  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor + orderType + pageNo + pageSize。
+  // cursor 必须是「毫秒时间戳」而非偏移量：首页为 Date.now()，翻页用上一次响应返回的
+  // data.cursor（响应里是 [previousCursor, nextCursor] 数组，取其 next 作为下一页游标）。
+  // 旧代码把 cursor 当成 offset 传 0，会导致首页都拿不到评论。
+  const prevCursor: number | null = (song as any).__wyCursor ?? null
+  const cursor = prevCursor ?? Date.now()
   const body = weapi(
     {
       rid: threadId,
@@ -109,13 +111,20 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   if (!res.ok) throw new Error("获取评论失败")
   const data = (await res.json()) as {
     code?: number
-    data?: { comments?: any[]; totalCount?: number; cursor?: number | string; hasMore?: boolean }
+    data?: { comments?: any[]; totalCount?: number; cursor?: number[] | number | string; hasMore?: boolean }
   }
   if (data.code !== 200 || !data.data) throw new Error("获取评论失败")
   const raw = data.data.comments ?? []
   const total = data.data.totalCount ?? 0
-  // 记录本次 cursor，供下一页使用（网易云用上一次返回的 cursor 翻页）。
-  ;(song as any).__wyCursor = data.data.cursor ?? cursor
+  // 记录下一页游标（响应 cursor 为 [上一页, 下一页] 数组，取下一项）。
+  const respCursor = data.data.cursor
+  if (Array.isArray(respCursor)) {
+    ;(song as any).__wyCursor = respCursor[1] ?? cursor
+  } else if (respCursor != null) {
+    ;(song as any).__wyCursor = respCursor
+  } else {
+    ;(song as any).__wyCursor = cursor
+  }
   const comments: CommentItem[] = raw.map((item) => ({
     id: String(item.commentId),
     text: item.content ? applyWyEmoji(item.content) : "",

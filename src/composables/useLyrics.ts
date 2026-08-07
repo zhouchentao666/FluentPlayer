@@ -102,7 +102,10 @@ export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } 
     const lyricInfo = await resolveOnlineLyric(info).catch(() => null)
     if (seq !== loadSeq) return
     if (!lyricInfo?.lyric) return
-    const parsed = parseLyric(lyricInfo.lyric)
+    // 优先使用逐字歌词（lxlyric：lrc-a2/yrc 格式；wy 的逐字在 ttml 字段且已写入
+    // lyric），否则用纯 LRC。逐字歌词让播放器支持逐字高亮。
+    const rawLyric = lyricInfo.lxlyric || lyricInfo.lyric
+    const parsed = parseLyric(rawLyric)
     lyrics.value = parsed
     hasLyrics.value = parsed.length > 0
   }

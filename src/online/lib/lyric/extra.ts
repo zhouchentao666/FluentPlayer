@@ -260,9 +260,12 @@ function decodeKrc(content: string): LyricInfo | null {
     }
   }
 
-  // Each line is `[<start>,<dur>]<(off,dur)word...>`. Convert the line time to
-  // a normal `[mm:ss.xx]` tag and strip per-word timing for the plain LRC.
+  // Each line is `[<start>,<dur>]<(off,dur,wd)word...>`.
+  // - Plain LRC: convert line time to `[mm:ss.xx]` and strip per-word timing.
+  // - 逐字 (lxlyric): keep per-word timing as `<off,dur>` (AMLL lrc-a2 format)
+  //   so the player can render karaoke-style word highlighting.
   const lrcLines: string[] = []
+  const lyricxLines: string[] = []
   const tlrcLines: string[] = []
   let idx = 0
   for (const line of str.split("\n")) {
@@ -274,17 +277,25 @@ function decodeKrc(content: string): LyricInfo | null {
     const mm = String(Math.floor(time / 60)).padStart(2, "0")
     const ss = String(time % 60).padStart(2, "0")
     const tag = `[${mm}:${ss}.${String(ms).padStart(3, "0")}]`
-    const words = decodeName(
-      line.replace(/^\[\d+,\d+\]/, "").replace(/<\d+,\d+,\d+>/g, "")
-    )
+    const body = line.replace(/^\[\d+,\d+\]/, "")
+    // 逐字：把 krc 的 <off,dur,wd> 压成 <off,dur>（wd 是字符数，AMLL 不需要）。
+    const lyricx = `${tag}${decodeName(body).replace(/<(\d+),(\d+),\d+>/g, "<$1,$2>")}`
+    // 纯 LRC：去掉所有字时间标记。
+    const words = decodeName(body.replace(/<\d+,\d+,\d+>/g, ""))
     lrcLines.push(`${tag}${words}`)
+    lyricxLines.push(lyricx)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
   const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
-  return { lyric, tlyric: tlrcLines.length ? tlrcLines.join("\n") : null }
+  const lxlyric = lyricxLines.join("\n")
+  return {
+    lyric,
+    lxlyric: lxlyric.trim() ? lxlyric : null,
+    tlyric: tlrcLines.length ? tlrcLines.join("\n") : null,
+  }
 }
 
 async function kgSearchLyric(
@@ -480,14 +491,18 @@ function mgDecryptMrc(data: string): string {
   return mgLongArrayToString(mgTeaDecrypt(mgHexToLongArray(data), MG_MRC_KEY))
 }
 
-// Convert decrypted MRC word-timed text into plain `[mm:ss.xx]` LRC. Mirrors
-// mg/lyric.js mrcTools.parseLyric, keeping only the plain `lyric` output (the
-// per-word lxlyric is dropped). Lines look like `[lineMs,dur]<off,dur>word...`.
-function mgParseLyric(str: string): string {
+// Convert decrypted MRC word-timed text into plain `[mm:ss.xx]` LRC + a
+// word-timed `lxlyric` (AMLL lrc-a2 format, keeping `<off,dur>` per-word marks
+// for karaoke-style highlighting). Mirrors mg/lyric.js mrcTools.parseLyric, but
+// additionally preserves per-word timing instead of dropping it. Lines look like
+// `[lineMs,dur]<off,dur>word...` where off/dur are millisecond offsets within
+// the line (exactly what lrc-a2 word timing expects).
+function mgParseLyric(str: string): { lyric: string; lxlyric: string } {
   str = str.replace(/\r/g, "")
   const lineTime = /^\s*\[(\d+),\d+\]/
   const wordTimeAll = /(\(\d+,\d+\))/g
   const lrcLines: string[] = []
+  const lyricxLines: string[] = []
   for (const line of str.split("\n")) {
     if (line.length < 6) continue
     const result = lineTime.exec(line)
@@ -498,12 +513,14 @@ function mgParseLyric(str: string): string {
     time = Math.floor(time / 1000)
     const m = String(Math.floor(time / 60)).padStart(2, "0")
     const s = String(time % 60).padStart(2, "0")
-    const tag = `${m}:${s}.${ms}`
+    const tag = `[${m}:${s}.${ms}]`
 
     const words = line.replace(lineTime, "")
-    lrcLines.push(`[${tag}]${words.replace(wordTimeAll, "")}`)
+    lrcLines.push(`${tag}${words.replace(wordTimeAll, "")}`)
+    // 逐字：保留 <off,dur> 相对字时间（mrc 用圆括号，转成 lrc-a2 尖括号）。
+    lyricxLines.push(`${tag}${words.replace(/\(\d+,\d+\)/g, (w) => `<${w.slice(1, -1)}>`)}`)
   }
-  return lrcLines.join("\n")
+  return { lyric: lrcLines.join("\n"), lxlyric: lyricxLines.join("\n") }
 }
 
 // Ported from mg/musicSearch.js createSignature (static device id + salts).
@@ -649,21 +666,26 @@ export async function getMgLyric(song: MusicInfo): Promise<LyricInfo | null> {
     if (!urls?.lrcUrl && !urls?.mrcUrl) return null // no lyric available
 
     // Prefer the plain lrcUrl; otherwise download + decrypt + parse the mrcUrl.
-    let lyric: string | null = null
+    let parsed: { lyric: string; lxlyric: string } | null = null
     if (urls.lrcUrl) {
-      lyric = await mgFetchText(urls.lrcUrl)
+      const text = await mgFetchText(urls.lrcUrl)
+      if (text?.trim()) parsed = { lyric: text, lxlyric: "" }
     } else if (urls.mrcUrl) {
       const enc = await mgFetchText(urls.mrcUrl)
-      if (enc) lyric = mgParseLyric(mgDecryptMrc(enc))
+      if (enc) parsed = mgParseLyric(mgDecryptMrc(enc))
     }
-    if (!lyric?.trim()) return null
+    if (!parsed?.lyric?.trim()) return null
 
     let tlyric: string | null = null
     if (urls.trcUrl) {
       const trans = await mgFetchText(urls.trcUrl)
       tlyric = trans?.trim() ? trans : null
     }
-    return { lyric, tlyric }
+    return {
+      lyric: parsed.lyric,
+      lxlyric: parsed.lxlyric || null,
+      tlyric,
+    }
   } catch {
     return null
   }
