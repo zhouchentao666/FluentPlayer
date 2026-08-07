@@ -51,17 +51,6 @@ function decodeName(str: string | null | undefined): string {
   )
 }
 
-// 毫秒 -> lrc-a2 时间标签 mm:ss.xx（用于逐字相对偏移）
-function formatKrcTimestamp(timeMs: number): string {
-  const totalMs = Math.floor(timeMs)
-  const ms = totalMs % 1000
-  const totalSec = (totalMs - ms) / 1000
-  const mm = String(Math.floor(totalSec / 60)).padStart(2, "0")
-  const ss = String(totalSec % 60).padStart(2, "0")
-  const xx = String(ms).padStart(3, "0")
-  return `${mm}:${ss}.${xx}`
-}
-
 // --- tx (QQ音乐) ---------------------------------------------------------
 
 interface TxLyricResponse {
@@ -228,11 +217,8 @@ function decodeKrc(content: string): LyricInfo | null {
   }
 
   // Each line is `[<start>,<dur>]<(off,dur,wd)word...>`.
-  // - Plain LRC: convert line time to `[mm:ss.xx]` and strip per-word timing.
-  // - 逐字 (lxlyric): keep per-word timing as `<off,dur>` (AMLL lrc-a2 format)
-  //   so the player can render karaoke-style word highlighting.
+  // Plain LRC: convert line time to `[mm:ss.xx]` and strip per-word timing.
   const lrcLines: string[] = []
-  const lyricxLines: string[] = []
   const tlrcLines: string[] = []
   let idx = 0
   for (const line of str.split("\n")) {
@@ -249,34 +235,14 @@ function decodeKrc(content: string): LyricInfo | null {
     // 纯 LRC：去掉所有字时间标记。
     const words = decoded.replace(/<\d+,\d+,\d+>/g, "")
     lrcLines.push(`${tag}${words}`)
-    // 逐字：标准 krc 字时间为 <off,dur,wd>字（字在尖括号外，相对行首毫秒偏移，
-    // wd 为数字占位；参考 seraphine parseKrcLyric）。直接产出 AMLL 标准 lrc-a2
-    // 行内 <相对偏移 mm:ss.xx>字，行首为绝对起始时间。
-    const baseMs = time * 1000 + ms
-    const wordReg = /<(\d+),(\d+),\d+>([^<]*)/g
-    let a2 = ""
-    let last = 0
-    let wm: RegExpExecArray | null
-    while ((wm = wordReg.exec(decoded)) !== null) {
-      const off = parseInt(wm[1], 10)
-      const wd = wm[3] // 字文本（尖括号外）
-      a2 += decoded.slice(last, wm.index) // 尖括号前的纯文本
-      a2 += `<${formatKrcTimestamp(off)}>${wd}`
-      last = wm.index + wm[0].length
-    }
-    a2 += decoded.slice(last)
-    lyricxLines.push(a2.trim() ? `${tag}${a2}` : `${tag}${decoded}`)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
   const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
-  // decodeKrc 已直接产出 AMLL 标准 lrc-a2（<mm:ss.xx>字，字在尖括号外）。
-  const lxlyric = lyricxLines.join("\n")
   return {
     lyric,
-    lxlyric: lxlyric.trim() ? lxlyric : null,
     tlyric: tlrcLines.length ? tlrcLines.join("\n") : null,
   }
 }
