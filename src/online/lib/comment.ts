@@ -80,12 +80,13 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
   const threadId = `R_SO_4_${songId}`
-  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor + orderType + pageNo + pageSize。
-  // cursor 必须是「毫秒时间戳」而非偏移量：首页为 Date.now()，翻页用上一次响应返回的
-  // data.cursor（响应里是 [previousCursor, nextCursor] 数组，取其 next 作为下一页游标）。
-  // 旧代码把 cursor 当成 offset 传 0，会导致首页都拿不到评论。
+  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor 翻页（非 page 偏移）。
+  // cursor 为毫秒时间戳：首页必须传 0（传 Date.now() 会请求当前时间之后的评论，
+  // 导致首页拿不到数据）；翻页用上一次响应返回的 data.cursor（[prev, next] 数组的 next）。
+  // 重新打开评论（page<=1）时清空缓存的游标，避免复用上次会话的旧游标。
+  if (page <= 1) (song as any).__wyCursor = null
   const prevCursor: number | null = (song as any).__wyCursor ?? null
-  const cursor = prevCursor ?? Date.now()
+  const cursor = prevCursor ?? 0
   const body = weapi(
     {
       rid: threadId,

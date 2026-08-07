@@ -3,6 +3,7 @@ import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
+import { convertLrcFormat } from "../../../utils/lyricConverter"
 
 // js-md5 CommonJS/ESM interop (same pattern as src/lib/search/mg.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,77 +105,33 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
 interface WyLyricResponse {
   lrc?: { lyric?: string }
   tlyric?: { lyric?: string }
-  // /eapi/song/lyric/v1 返回 AMLL/TTML 逐字歌词（优先使用，不转 LRC）
-  ttml?: string
-  data?: { lrc?: { lyric?: string }; tlyric?: { lyric?: string }; ttml?: string }
+  data?: { lrc?: { lyric?: string }; tlyric?: { lyric?: string } }
 }
 
-// NetEase lyric. Prefer the eapi /song/lyric/v1 endpoint, which returns the
-// AMLL/TTML timed lyric (data.ttml) — used directly by the AMLL renderer
-// instead of being flattened into LRC. Falls back to the plain /api/song/lyric
-// LRC endpoint when TTML is absent. numeric songId.
+// NetEase lyric. Uses the plain /api/song/lyric LRC endpoint (with translation).
+// Note: NetEase's TTML timed lyric is intentionally NOT used here — the player
+// only keeps Kugou (kg) word-timed lyrics, so we return plain LRC for wy.
 export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const id = song.meta.songId
     if (!id) return null
 
-    const url = "https://music.163.com/eapi/song/lyric/v1"
-    const body = eapi(url, {
-      id: String(id),
-      cp: false,
-      tv: 0,
-      lv: 0,
-      rv: 0,
-      kv: 0,
-      yv: 0,
-      ytv: 0,
-      yrv: 0,
-    })
-    let res = await httpFetch(`${url}?${new URLSearchParams(body)}`, {
-      method: "POST",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Referer: "https://music.163.com/",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    })
-
-    let ttml: string | null = null
-    let lrc: string | null = null
-    let tlyric: string | null = null
-
-    if (res.ok) {
-      const data = (await res.json()) as WyLyricResponse
-      ttml = data.data?.ttml ?? data.ttml ?? null
-      lrc = data.data?.lrc?.lyric ?? data.lrc?.lyric ?? null
-      tlyric = data.data?.tlyric?.lyric ?? data.tlyric?.lyric ?? null
-    }
-
-    // 没有 TTML 时回退到经典 LRC 接口
-    if (!ttml) {
-      const fallback = await httpFetch(
-        `https://music.163.com/api/song/lyric?os=pc&id=${encodeURIComponent(id)}&lv=-1&kv=-1&tv=-1`,
-        {
-          method: "GET",
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-        }
-      )
-      if (fallback.ok) {
-        const data = (await fallback.json()) as WyLyricResponse
-        lrc = data.lrc?.lyric ?? lrc
-        tlyric = data.tlyric?.lyric ?? tlyric
+    const res = await httpFetch(
+      `https://music.163.com/api/song/lyric?os=pc&id=${encodeURIComponent(id)}&lv=-1&kv=-1&tv=-1`,
+      {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Referer: "https://music.163.com/",
+        },
       }
-    }
-
-    if (!ttml && !lrc?.trim()) return null
-    return {
-      // 优先用 AMLL/TTML 原文（前端 parseLyric 会自动识别并渲染逐字），否则用 LRC
-      lyric: ttml ?? lrc ?? "",
-      tlyric: tlyric || null,
-      ttml: ttml || null,
-    }
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as WyLyricResponse
+    const lrc = data.lrc?.lyric ?? null
+    const tlyric = data.tlyric?.lyric ?? null
+    if (!lrc?.trim()) return null
+    return { lyric: lrc, tlyric: tlyric || null }
   } catch {
     return null
   }
@@ -278,19 +235,25 @@ function decodeKrc(content: string): LyricInfo | null {
     const ss = String(time % 60).padStart(2, "0")
     const tag = `[${mm}:${ss}.${String(ms).padStart(3, "0")}]`
     const body = line.replace(/^\[\d+,\d+\]/, "")
-    // 逐字：把 krc 的 <off,dur,wd> 压成 <off,dur>（wd 是字符数，AMLL 不需要）。
-    const lyricx = `${tag}${decodeName(body).replace(/<(\d+),(\d+),\d+>/g, "<$1,$2>")}`
+    const decoded = decodeName(body)
     // 纯 LRC：去掉所有字时间标记。
-    const words = decodeName(body.replace(/<\d+,\d+,\d+>/g, ""))
+    const words = decoded.replace(/<\d+,\d+,\d+>/g, "")
     lrcLines.push(`${tag}${words}`)
-    lyricxLines.push(lyricx)
+    // 逐字：krc 字时间为相对毫秒 <off,dur,wd>，AMLL 的 lrc-a2 要求 <mm:ss.xx> 绝对时间。
+    // 这里把尖括号改成圆括号 (off,dur,wd)，并以行起始毫秒为基准拼成 convertLrcFormat
+    // 能识别的「[行起始毫秒,0](off,dur,wd)字」行，最后统一转成标准 lrc-a2。
+    const baseMs = time * 1000 + ms
+    const a2body = decoded.replace(/<(\d+),(\d+),(\d+)>/g, "($1,$2,$3)")
+    lyricxLines.push(a2body.includes("(") ? `[${baseMs},0]${a2body}` : `${tag}${a2body}`)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++
   }
 
   const lyric = lrcLines.join("\n")
   if (!lyric.trim()) return null
-  const lxlyric = lyricxLines.join("\n")
+  // 统一转换逐字为 AMLL 标准 lrc-a2（<mm:ss.xx>字）。
+  const rawLx = lyricxLines.join("\n")
+  const lxlyric = rawLx.includes("(") ? convertLrcFormat(rawLx) : rawLx
   return {
     lyric,
     lxlyric: lxlyric.trim() ? lxlyric : null,
@@ -491,18 +454,14 @@ function mgDecryptMrc(data: string): string {
   return mgLongArrayToString(mgTeaDecrypt(mgHexToLongArray(data), MG_MRC_KEY))
 }
 
-// Convert decrypted MRC word-timed text into plain `[mm:ss.xx]` LRC + a
-// word-timed `lxlyric` (AMLL lrc-a2 format, keeping `<off,dur>` per-word marks
-// for karaoke-style highlighting). Mirrors mg/lyric.js mrcTools.parseLyric, but
-// additionally preserves per-word timing instead of dropping it. Lines look like
-// `[lineMs,dur]<off,dur>word...` where off/dur are millisecond offsets within
-// the line (exactly what lrc-a2 word timing expects).
-function mgParseLyric(str: string): { lyric: string; lxlyric: string } {
+// Convert decrypted MRC word-timed text into plain `[mm:ss.xx]` LRC.
+// The word-timed marks are intentionally dropped here — Migu word-timed lyric
+// is not kept by the player (only Kugou keeps word-timed lyrics).
+function mgParseLyric(str: string): { lyric: string } {
   str = str.replace(/\r/g, "")
   const lineTime = /^\s*\[(\d+),\d+\]/
   const wordTimeAll = /(\(\d+,\d+\))/g
   const lrcLines: string[] = []
-  const lyricxLines: string[] = []
   for (const line of str.split("\n")) {
     if (line.length < 6) continue
     const result = lineTime.exec(line)
@@ -517,10 +476,8 @@ function mgParseLyric(str: string): { lyric: string; lxlyric: string } {
 
     const words = line.replace(lineTime, "")
     lrcLines.push(`${tag}${words.replace(wordTimeAll, "")}`)
-    // 逐字：保留 <off,dur> 相对字时间（mrc 用圆括号，转成 lrc-a2 尖括号）。
-    lyricxLines.push(`${tag}${words.replace(/\(\d+,\d+\)/g, (w) => `<${w.slice(1, -1)}>`)}`)
   }
-  return { lyric: lrcLines.join("\n"), lxlyric: lyricxLines.join("\n") }
+  return { lyric: lrcLines.join("\n") }
 }
 
 // Ported from mg/musicSearch.js createSignature (static device id + salts).
@@ -666,10 +623,10 @@ export async function getMgLyric(song: MusicInfo): Promise<LyricInfo | null> {
     if (!urls?.lrcUrl && !urls?.mrcUrl) return null // no lyric available
 
     // Prefer the plain lrcUrl; otherwise download + decrypt + parse the mrcUrl.
-    let parsed: { lyric: string; lxlyric: string } | null = null
+    let parsed: { lyric: string } | null = null
     if (urls.lrcUrl) {
       const text = await mgFetchText(urls.lrcUrl)
-      if (text?.trim()) parsed = { lyric: text, lxlyric: "" }
+      if (text?.trim()) parsed = { lyric: text }
     } else if (urls.mrcUrl) {
       const enc = await mgFetchText(urls.mrcUrl)
       if (enc) parsed = mgParseLyric(mgDecryptMrc(enc))
@@ -683,7 +640,6 @@ export async function getMgLyric(song: MusicInfo): Promise<LyricInfo | null> {
     }
     return {
       lyric: parsed.lyric,
-      lxlyric: parsed.lxlyric || null,
       tlyric,
     }
   } catch {

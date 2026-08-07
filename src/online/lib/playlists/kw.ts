@@ -221,6 +221,12 @@ function normalizeKwListSong(raw: KwListSongRaw): MusicInfo {
   const _qualitys = indexQualitySizes(qualitys)
 
   const duration = parseInt(String(raw.duration))
+  // 歌单详情接口不返回每首歌封面，这里用酷我封面直链补全：
+  // https://coverimg.kuwo.cn/star/albumcover/<albumid>/<rid>_240.jpg
+  // （与 lx-music kw 封面规则一致，浏览器可直接加载；albumid 缺失时回退占位）。
+  const albumId = raw.albumid != null ? String(raw.albumid) : ""
+  const picUrl = albumId ? `https://coverimg.kuwo.cn/star/albumcover/${albumId}/${songId}_240.jpg` : null
+
   return {
     id: `kw_${songId}`,
     name: decodeKwName(raw.name),
@@ -230,8 +236,8 @@ function normalizeKwListSong(raw: KwListSongRaw): MusicInfo {
     albumName: decodeKwName(raw.album),
     meta: {
       songId,
-      albumId: raw.albumid != null ? String(raw.albumid) : "",
-      picUrl: null,
+      albumId,
+      picUrl,
       qualitys,
       _qualitys,
     },

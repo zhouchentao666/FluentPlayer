@@ -52,9 +52,8 @@ const KW_KEY = new TextEncoder().encode("yeelion") // 7 bytes
 
 // XOR `params` with the rolling "yeelion" key, base64-encode (buildParams).
 function kwBuildParams(id: string): string {
-  // isGetLyricx=1 让酷我返回逐字 (lyricx) 歌词：body 为 base64 文本，解码后
-  // XOR 0x64 再 GB18030 解码得到带 <-?\d+,-?\d+> 字时间标记的 LRC（见 kwDecodeLyric）。
-  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}&isGetLyricx=1`
+  // 纯 LRC 模式（不带 isGetLyricx），避免返回带字时间的 lyricx。
+  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}`
   const src = new TextEncoder().encode(params)
   const out = new Uint8Array(src.length)
   let i = 0
@@ -172,13 +171,12 @@ const KW_TIME_EXP = /^\[([\d:.]*)\]/
 const KW_EXIST_TIME_EXP = /\[\d{1,2}:.*\d{1,4}\]/
 const KW_WORD_TIME_ALL = /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g
 
-// Parse plain LRC text into { lyric, tlyric, lxlyric }. Mirrors kw/lyric.js
-// parseLrc + transformLrc, but keeps per-word timing (`<-?\d+,-?\d+>` from the
-// lyricx form) in `lxlyric` as AMLL lrc-a2 (`<start,dur>` word marks) so the
-// player can render karaoke-style word highlighting.
+// Parse plain LRC text into { lyric, tlyric }. Mirrors kw/lyric.js
+// parseLrc + transformLrc. KuWo word-timed lyric is intentionally dropped —
+// the player only keeps Kugou (kg) word-timed lyrics.
 function kwParseLrc(text: string): LyricInfo | null {
   const lines = text.split(/\r\n|\r|\n/)
-  const lrcArr: { time: string; text: string; wordtime?: boolean }[] = []
+  const lrcArr: { time: string; text: string }[] = []
   for (const raw of lines) {
     const line = raw.trim()
     const m = KW_TIME_EXP.exec(line)
@@ -186,7 +184,7 @@ function kwParseLrc(text: string): LyricInfo | null {
     let time = m[1]
     if (/\.\d\d$/.test(time)) time += "0"
     const body = line.replace(KW_TIME_EXP, "").trim()
-    lrcArr.push({ time, text: body, wordtime: KW_WORD_TIME_ALL.test(body) })
+    lrcArr.push({ time, text: body })
   }
   if (!lrcArr.length) return null
 
@@ -199,25 +197,15 @@ function kwParseLrc(text: string): LyricInfo | null {
 
   const toText = (list: { time: string; text: string }[]): string =>
     list.map((l) => `[${l.time}]${l.text}`).join("\n")
-  // 逐字：保留并规整字时间标记（去掉可选的第三个数，保留 <start,dur>）。
-  const toWordText = (list: { time: string; text: string }[]): string =>
-    list.map((l) => `[${l.time}]${l.text.replace(KW_WORD_TIME_ALL, (_, s, d) => `<${s},${d}>`)}`).join("\n")
 
   let lyric = toText(parts.lrc).replace(KW_WORD_TIME_ALL, "")
   if (!KW_EXIST_TIME_EXP.test(lyric)) return null
   let tlyric = parts.lrcT.length ? toText(parts.lrcT).replace(KW_WORD_TIME_ALL, "") : ""
-  const hasWordTime = lrcArr.some((l) => l.wordtime)
-  const lxlyric = hasWordTime
-    ? toWordText(parts.lrc)
-        .replace(KW_WORD_TIME_ALL, (_, s, d) => `<${s},${d}>`)
-        .trim()
-    : ""
   lyric = lyric.trim()
   tlyric = tlyric.trim()
   return {
     lyric,
     tlyric: tlyric || null,
-    lxlyric: lxlyric || null,
   }
 }
 
