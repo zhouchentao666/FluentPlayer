@@ -92,9 +92,11 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
       rid: threadId,
       threadId,
       cursor: String(cursor),
-      orderType: "1",
-      pageNo: String(page),
+      offset: "0",
+      orderType: 1,
+      pageNo: "1",
       pageSize: String(limit),
+      csrf_token: "",
     },
     randomSecret(),
   )

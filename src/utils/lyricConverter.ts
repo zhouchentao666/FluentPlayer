@@ -11,7 +11,7 @@ function formatTimestamp(timeMs: number): string {
 function convertNewFormat(baseTimeMs: number, content: string): string | null {
   const baseTimestamp = formatTimestamp(baseTimeMs)
   let convertedContent = `<${formatTimestamp(0)}>`
-  const charPattern = /\((\d+),(\d+),(\d+)\)([^\(]*?)(?=\(|$)/g
+  const charPattern = /\((\d+),(\d+),([^()]*)\)/g
   let match: RegExpExecArray | null
   let isFirstChar = true
   let lastConsumedIndex = 0
@@ -20,7 +20,7 @@ function convertNewFormat(baseTimeMs: number, content: string): string | null {
     const [, charStartMs] = match
     const charTimeMs = parseInt(charStartMs, 10)
     const charTimestamp = formatTimestamp(charTimeMs)
-    const char = match[4] ?? ''
+    const char = match[3] ?? ''
 
     if (match.index > lastConsumedIndex) {
       convertedContent += content.substring(lastConsumedIndex, match.index)
@@ -151,7 +151,7 @@ export function convertLrcFormat(lrcContent: string): string {
     if (newFormatMatch) {
       const [, startTimeMs, , content] = newFormatMatch
       const baseTimeMs = parseInt(startTimeMs, 10)
-      if (!/\(\d+,\d+,\d+\)/.test(content)) {
+      if (!/\(\d+,\d+,[^()]*\)/.test(content)) {
         convertedLines.push(`[${formatTimestamp(baseTimeMs)}]${content}`)
         continue
       }

@@ -2,6 +2,7 @@
 import { getBuiltinLyric } from "@online/lib/lyric"
 import { bestQuality, QUALITY_LADDER, QUALITY_SHORT } from "@online/lib/quality"
 import { sourceRunner } from "@online/lib/sourceRunner"
+import { getKwCoverUrl } from "@online/lib/search/kuwo"
 import type { LyricInfo, MusicInfo, Quality } from "@online/types/music"
 import type { Song, SongMetadata } from "../types"
 
@@ -93,6 +94,15 @@ function capToSong(m: MusicInfo, preferred: Quality): Quality {
 /** 获取在线封面（元数据缺失时向音源脚本请求）。 */
 export async function resolveOnlinePic(m: MusicInfo): Promise<string | null> {
   if (m.meta.picUrl) return m.meta.picUrl
+  // 内置酷我源：歌单列表不返回封面，播放时按 rid 现取真实封面
+  if (m.source === "kw" && m.meta.songId) {
+    try {
+      const url = await getKwCoverUrl(String(m.meta.songId))
+      if (url) return url
+    } catch {
+      // 继续走 LX 脚本兜底
+    }
+  }
   try {
     return await sourceRunner.getPic({ source: m.source, action: "pic", info: m })
   } catch {

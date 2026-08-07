@@ -243,7 +243,7 @@ function decodeKrc(content: string): LyricInfo | null {
     // 这里把尖括号改成圆括号 (off,dur,wd)，并以行起始毫秒为基准拼成 convertLrcFormat
     // 能识别的「[行起始毫秒,0](off,dur,wd)字」行，最后统一转成标准 lrc-a2。
     const baseMs = time * 1000 + ms
-    const a2body = decoded.replace(/<(\d+),(\d+),(\d+)>/g, "($1,$2,$3)")
+    const a2body = decoded.replace(/<(\d+),(\d+),([^<>]*)>/g, "($1,$2,$3)")
     lyricxLines.push(a2body.includes("(") ? `[${baseMs},0]${a2body}` : `${tag}${a2body}`)
     if (tlyricLines) tlrcLines.push(`${tag}${tlyricLines[idx] ?? ""}`)
     idx++

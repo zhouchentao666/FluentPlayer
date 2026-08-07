@@ -87,7 +87,7 @@ function normalizeKwSong(raw: KwSongRaw): MusicInfo {
 
 // 通过 kuwo 的 artistpicserver 接口按歌曲 rid 获取专辑封面（参考 Mio-Music 实现）。
 // 旧的 m.kuwo.cn musicInfo 接口已经失效、返回空，故改用 artistpicserver.pic.web。
-async function getKwCoverUrl(songId: string): Promise<string> {
+export async function getKwCoverUrl(songId: string): Promise<string> {
   try {
     const url =
       `http://artistpicserver.kuwo.cn/pic.web?corp=kuwo&type=rid_pic` +
