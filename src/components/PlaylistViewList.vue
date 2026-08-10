@@ -74,11 +74,14 @@ function dragData(song: Song) {
 function onDragStart(e: DragEvent, song: Song) {
   if (!e.dataTransfer) return
   e.dataTransfer.effectAllowed = 'move'
+  // 同时设置 text/plain 兜底：自定义 MIME 在部分浏览器 dragover 阶段不可读
   e.dataTransfer.setData('application/sugarplayer-song', dragData(song))
+  e.dataTransfer.setData('text/plain', song.id)
 }
 
 function onDragOver(e: DragEvent, index: number) {
   if (!isCustomSort()) return
+  // 必须 preventDefault，否则浏览器显示禁止(圆形)光标且不允许 drop
   e.preventDefault()
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dragOverIndex.value = index
@@ -86,6 +89,31 @@ function onDragOver(e: DragEvent, index: number) {
 
 function onDragLeave() {
   dragOverIndex.value = null
+}
+
+/** 列表容器兜底：拖到空白处也允许放置，避免禁止光标。 */
+function onListDragOver(e: DragEvent) {
+  if (!isCustomSort()) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+}
+
+function onListDrop(e: DragEvent) {
+  if (!isCustomSort()) return
+  // 若已落到具体 song-item / trailing-drop-zone 上，其自身 handler 会处理；
+  // 这里仅在落到空白区域时，当作拖到末尾处理。
+  if (e.target !== e.currentTarget) return
+  e.preventDefault()
+  const raw = e.dataTransfer?.getData('application/sugarplayer-song')
+  if (!raw) return
+  const { songId, sourcePlaylistId } = JSON.parse(raw) as { songId: string; sourcePlaylistId: string }
+  if (sourcePlaylistId !== props.playlistId) return
+  const next = [...props.songs]
+  const fromIndex = next.findIndex(s => s.id === songId)
+  if (fromIndex < 0) return
+  const [moved] = next.splice(fromIndex, 1)
+  next.push(moved)
+  emit('reorder', next)
 }
 
 function onDrop(e: DragEvent, targetIndex: number) {
@@ -188,7 +216,7 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
 </script>
 
 <template>
-  <div class="song-list" @click="closeMenu">
+  <div class="song-list" @click="closeMenu" @dragover="onListDragOver" @drop="onListDrop">
     <div class="list-header">
       <span v-if="props.batchMode" class="col-check"></span>
       <span class="col-index">#</span>

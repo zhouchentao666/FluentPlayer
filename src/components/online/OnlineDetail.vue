@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 
-/** 在线歌单不支持批量选择，传入空集合即可。 */
-const emptySet = new Set<string>()
 import type { MusicInfo } from '@online/types/music'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
 import type { PinnedOnlineItem } from '../../composables/useConfig'
+import type { SortMode } from '../../composables/usePlaylistView'
 import { getPlaylistDetail } from '@online/lib/playlists'
 import { getAlbumDetail } from '@online/lib/albums'
 import { musicInfoToSong } from '@online/player'
 import PlaylistViewList from '../PlaylistViewList.vue'
+import PlaylistBatchBar from '../PlaylistBatchBar.vue'
+import ComboBox, { type ComboBoxOption } from '../settings/ComboBox.vue'
 import { toast } from '../../composables/useToast'
 
 const props = defineProps<{
@@ -51,12 +52,100 @@ let autoTimer: ReturnType<typeof setTimeout> | null = null
 const currentId = computed(() => props.currentSong?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
 /** 与本地歌单共用统一的歌曲列表组件 */
-const songList = computed(() => list.value.map(musicInfoToSong))
+const fullList = computed(() => list.value.map(musicInfoToSong))
+
+// ---- 搜索 / 排序 / 批量 ----
+type SortOrder = 'asc' | 'desc'
+
+const SORT_LABELS: Partial<Record<SortMode, string>> = {
+  custom: '默认',
+  title: '标题',
+  artist: '艺术家',
+  album: '专辑',
+  duration: '时长',
+  year: '年份',
+}
+const sortOptions = computed<ComboBoxOption[]>(() =>
+  (Object.keys(SORT_LABELS) as SortMode[]).map((m) => ({ value: m, label: SORT_LABELS[m] ?? m })),
+)
+const orderOptions: ComboBoxOption[] = [
+  { value: 'asc', label: '升序' },
+  { value: 'desc', label: '降序' },
+]
+
+const searchQuery = ref('')
+const sortMode = ref<SortMode>('custom')
+const sortOrder = ref<SortOrder>('asc')
+const batchMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
+
+function sortKey(song: Song, mode: SortMode): string | number {
+  const m = song.metadata
+  switch (mode) {
+    case 'title':
+      return (m?.title || song.title || '').toLowerCase()
+    case 'artist':
+      return (m?.artist || '').toLowerCase()
+    case 'album':
+      return (m?.album || '').toLowerCase()
+    case 'duration':
+      return m?.duration ?? 0
+    case 'year':
+      return m?.year?.toString().toLowerCase() ?? ''
+    default:
+      return 0
+  }
+}
+
+const displaySongs = computed<Song[]>(() => {
+  let result = fullList.value
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter((s) =>
+      [s.metadata?.title, s.metadata?.artist, s.metadata?.album, s.title]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    )
+  }
+  if (sortMode.value !== 'custom') {
+    const order = sortOrder.value === 'asc' ? 1 : -1
+    result = [...result].sort((a, b) => {
+      const av = sortKey(a, sortMode.value)
+      const bv = sortKey(b, sortMode.value)
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * order
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * order
+    })
+  }
+  return result
+})
+
+const selectedSongs = computed(() =>
+  displaySongs.value.filter((s) => selectedIds.value.has(s.id)),
+)
+
+function toggleSelection(id: string) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+function selectAll() {
+  selectedIds.value = new Set(displaySongs.value.map((s) => s.id))
+}
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+function exitBatch() {
+  batchMode.value = false
+  clearSelection()
+}
 
 // 「收藏歌单」：选择本地歌单后整张收藏
 const collectMenu = ref<Song[] | null>(null)
 function openCollectMenu() {
-  collectMenu.value = songList.value
+  collectMenu.value = fullList.value
 }
 function confirmCollect(plId: string) {
   if (!collectMenu.value) return
@@ -114,8 +203,8 @@ function stopAuto() {
 }
 
 function onPlaySong(song: Song) {
-  const idx = songList.value.findIndex((x) => x.id === song.id)
-  emit('play', songList.value, idx >= 0 ? idx : 0)
+  const idx = displaySongs.value.findIndex((x) => x.id === song.id)
+  emit('play', displaySongs.value, idx >= 0 ? idx : 0)
 }
 
 function onTogglePin() {
@@ -155,14 +244,14 @@ onUnmounted(stopAuto)
           <div class="kind-tag">{{ kind === 'album' ? '专辑' : '歌单' }}</div>
           <h1 class="name">{{ info.name }}</h1>
           <div v-if="info.author" class="author">{{ info.author }}</div>
-          <div class="count">{{ list.length }} 首</div>
+          <div class="count">{{ fullList.length }} 首</div>
           <div class="buttons">
-            <button class="play-all" @click="emit('play', songList, 0)">
+            <button class="play-all" @click="emit('play', displaySongs, 0)">
               <svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
               播放全部
             </button>
             <button class="ghost" @click="openCollectMenu">收藏歌单</button>
-            <button class="ghost" @click="emit('download-all', songList)">下载全部</button>
+            <button class="ghost" @click="emit('download-all', fullList)">下载全部</button>
             <button class="ghost pin" :class="{ active: pinned }" @click="onTogglePin">
               <svg viewBox="0 0 16 16" width="14" height="14">
                 <path
@@ -179,18 +268,84 @@ onUnmounted(stopAuto)
         </div>
       </div>
 
+      <!-- 搜索 / 排序 / 批量（固定按钮右侧） -->
+      <div class="toolbar">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.3-4.3" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            class="search-input"
+            type="text"
+            placeholder="搜索歌曲"
+            aria-label="搜索歌曲"
+          />
+          <button v-if="searchQuery" class="search-clear" title="清除" @click="searchQuery = ''">×</button>
+        </div>
+
+        <ComboBox
+          class="sort-select"
+          width="96px"
+          aria-label="排序方式"
+          :options="sortOptions"
+          :model-value="sortMode"
+          @update:model-value="(v) => (sortMode = v as SortMode)"
+        />
+        <button
+          class="order-btn"
+          :title="sortOrder === 'asc' ? '升序' : '降序'"
+          @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path v-if="sortOrder === 'asc'" d="M6 15l6 6 6-6M12 3v18" />
+            <path v-else d="M6 9l6-6 6 6M12 21V3" />
+          </svg>
+        </button>
+
+        <button
+          class="ghost batch-btn"
+          :class="{ active: batchMode }"
+          :title="batchMode ? '退出批量选择' : '批量选择'"
+          @click="batchMode ? exitBatch() : (batchMode = true)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 5h18M3 12h18M3 19h18" />
+          </svg>
+          批量
+        </button>
+      </div>
+
       <PlaylistViewList
-        :songs="songList"
+        :songs="displaySongs"
         :playlists="playlists"
         :current-song="currentSong"
         :playlist-id="`online-${source}-${id}`"
         :sort-mode="'custom'"
-        :batch-mode="false"
-        :selected-ids="emptySet"
+        :batch-mode="batchMode"
+        :selected-ids="selectedIds"
+        :search-query="searchQuery"
         @play="onPlaySong"
         @add-to-queue="(s) => emit('queue', s)"
+        @toggle="toggleSelection"
         @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
         @comment="(s) => emit('comment', s)"
+      />
+
+      <PlaylistBatchBar
+        v-if="batchMode"
+        :selected-songs="selectedSongs"
+        :playlists="playlists"
+        :current-playlist-id="`online-${source}-${id}`"
+        :show-download="true"
+        :show-remove="false"
+        :show-replace="false"
+        @select-all="selectAll"
+        @clear-selection="clearSelection"
+        @download="emit('download-all', selectedSongs)"
+        @add-to-playlist="(pid) => emit('add-all', pid, selectedSongs)"
+        @close="exitBatch"
       />
 
       <!-- 收藏整张歌单：选择本地歌单 -->
@@ -372,6 +527,7 @@ onUnmounted(stopAuto)
   display: flex;
   gap: 10px;
   margin-top: 6px;
+  flex-wrap: wrap;
 }
 .play-all {
   display: inline-flex;
@@ -399,5 +555,95 @@ onUnmounted(stopAuto)
 }
 .ghost:hover {
   background: var(--fluent-bg-hover);
+}
+.ghost.active {
+  border-color: var(--fluent-accent);
+  color: var(--fluent-accent);
+}
+.batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.batch-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 工具栏（搜索 / 排序 / 批量） */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 18px;
+  background: var(--fluent-bg-hover);
+  border: 1px solid transparent;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.search-box:focus-within {
+  border-color: var(--fluent-accent);
+  background: var(--fluent-bg-card);
+}
+.search-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--fluent-text-secondary);
+  flex: none;
+}
+.search-input {
+  width: 150px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fluent-text);
+  font-size: 13px;
+}
+.search-input::placeholder {
+  color: var(--fluent-text-secondary);
+}
+.search-clear {
+  border: none;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.search-clear:hover {
+  color: var(--fluent-text);
+}
+.order-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: var(--fluent-bg-hover);
+  color: var(--fluent-text);
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.order-btn:hover {
+  background: var(--fluent-bg-active);
+}
+.order-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.sort-select :deep(.win-combo) {
+  min-height: 34px;
+  border-radius: 8px;
 }
 </style>

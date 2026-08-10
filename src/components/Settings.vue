@@ -197,6 +197,9 @@ function manualCheckUpdate() {
             >恢复默认</button>
           </div>
         </SettingRow>
+        <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
+          <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
+        </SettingRow>
       </SettingCard>
 
       <WindowEffectSettings :settings="settings" @update="update" />
@@ -336,9 +339,6 @@ function manualCheckUpdate() {
             :model-value="settings.systemMediaControl"
             @update:model-value="value => update({ systemMediaControl: value })"
           />
-        </SettingRow>
-        <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
-          <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
         </SettingRow>
       </SettingCard>
 

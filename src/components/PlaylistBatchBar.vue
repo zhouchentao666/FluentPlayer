@@ -7,6 +7,9 @@ const props = defineProps<{
   selectedSongs: Song[]
   playlists: Playlist[]
   currentPlaylistId: string
+  showDownload?: boolean
+  showRemove?: boolean
+  showReplace?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -16,6 +19,7 @@ const emit = defineEmits<{
   'select-all': []
   'clear-selection': []
   close: []
+  download: []
 }>()
 
 const targetId = ref('')
@@ -66,7 +70,7 @@ function handleReplace() {
         </button>
       </div>
 
-      <div class="action-wrap" data-tip="从歌单移除">
+      <div class="action-wrap" data-tip="从歌单移除" v-if="props.showRemove !== false">
         <button class="icon-btn danger" @click="emit('remove')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -74,7 +78,7 @@ function handleReplace() {
         </button>
       </div>
 
-      <div class="divider"></div>
+      <div class="divider" v-if="props.showRemove !== false"></div>
 
       <ComboBox
         v-model="targetId"
@@ -93,10 +97,21 @@ function handleReplace() {
         </button>
       </div>
 
-      <div class="action-wrap" data-tip="替换到歌单">
+      <div class="action-wrap" data-tip="替换到歌单" v-if="props.showReplace !== false">
         <button class="icon-btn" :disabled="!hasTarget" @click="handleReplace">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M7 10h14l-4-4M17 14H3l4 4" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="divider" v-if="props.showDownload"></div>
+
+      <div class="action-wrap" data-tip="下载" v-if="props.showDownload">
+        <button class="icon-btn" @click="emit('download')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12M7 10l5 5 5-5" />
+            <path d="M5 21h14" />
           </svg>
         </button>
       </div>
