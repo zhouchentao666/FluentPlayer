@@ -463,24 +463,30 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
 }
 
 .drag-handle {
-  display: none;
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
   cursor: grab;
   color: var(--fluent-text-secondary);
+  opacity: 0;
+  /* 关键：拖拽时鼠标可能离开歌单项 hover，手柄保持可见，避免拖拽中断显示禁止光标 */
+  user-select: none;
+  -webkit-user-drag: element;
 }
-
-.song-item:hover .index-number {
-  display: none;
+.drag-handle svg {
+  pointer-events: none;
 }
 
 .song-item:hover .drag-handle {
-  display: inline-flex;
+  opacity: 1;
 }
 
+/* 拖拽过程中保持手柄可见（:active 在 dragstart 后仍生效） */
 .drag-handle:active {
   cursor: grabbing;
+  opacity: 1;
 }
 
 .col-title {

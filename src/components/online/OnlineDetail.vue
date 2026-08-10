@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 
 import type { MusicInfo } from '@online/types/music'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
@@ -78,6 +78,18 @@ const sortMode = ref<SortMode>('custom')
 const sortOrder = ref<SortOrder>('asc')
 const batchMode = ref(false)
 const selectedIds = ref<Set<string>>(new Set())
+
+// 工具栏图标展开状态
+const showSearch = ref(false)
+const showSort = ref(false)
+const searchInput = ref<HTMLInputElement | null>(null)
+function toggleSearch() {
+  showSearch.value = !showSearch.value
+  if (showSearch.value) {
+    showSort.value = false
+    nextTick(() => searchInput.value?.focus())
+  }
+}
 
 function sortKey(song: Song, mode: SortMode): string | number {
   const m = song.metadata
@@ -264,12 +276,71 @@ onUnmounted(stopAuto)
               </svg>
               {{ pinned ? '已固定' : '固定到侧栏' }}
             </button>
+
+            <!-- 右侧工具图标：点击展开 -->
+            <div class="tool-icons">
+              <button
+                class="tool-icon"
+                :class="{ active: showSearch }"
+                title="搜索"
+                @click="toggleSearch"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+              </button>
+
+              <div class="tool-pop" :class="{ open: showSort }">
+                <button
+                  class="tool-icon"
+                  :class="{ active: showSort || sortMode !== 'custom' }"
+                  title="排序"
+                  @click="showSort = !showSort"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h12M4 12h9M4 18h6" />
+                    <path d="M17 8l3 3 3-3" transform="translate(-3 2)" />
+                  </svg>
+                </button>
+                <div v-if="showSort" class="pop-panel">
+                  <ComboBox
+                    width="120px"
+                    aria-label="排序方式"
+                    :options="sortOptions"
+                    :model-value="sortMode"
+                    @update:model-value="(v) => (sortMode = v as SortMode)"
+                  />
+                  <button
+                    class="order-btn"
+                    :title="sortOrder === 'asc' ? '升序' : '降序'"
+                    @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path v-if="sortOrder === 'asc'" d="M6 15l6 6 6-6M12 3v18" />
+                      <path v-else d="M6 9l6-6 6 6M12 21V3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                class="tool-icon"
+                :class="{ active: batchMode }"
+                :title="batchMode ? '退出批量选择' : '批量选择'"
+                @click="batchMode ? exitBatch() : (batchMode = true)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 5h18M3 12h18M3 19h18" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- 搜索 / 排序 / 批量（固定按钮右侧） -->
-      <div class="toolbar">
+      <!-- 搜索展开输入 -->
+      <div v-if="showSearch" class="search-row">
         <div class="search-box">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="7" />
@@ -277,44 +348,15 @@ onUnmounted(stopAuto)
           </svg>
           <input
             v-model="searchQuery"
+            ref="searchInput"
             class="search-input"
             type="text"
             placeholder="搜索歌曲"
             aria-label="搜索歌曲"
+            @keyup.esc="showSearch = false"
           />
           <button v-if="searchQuery" class="search-clear" title="清除" @click="searchQuery = ''">×</button>
         </div>
-
-        <ComboBox
-          class="sort-select"
-          width="96px"
-          aria-label="排序方式"
-          :options="sortOptions"
-          :model-value="sortMode"
-          @update:model-value="(v) => (sortMode = v as SortMode)"
-        />
-        <button
-          class="order-btn"
-          :title="sortOrder === 'asc' ? '升序' : '降序'"
-          @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path v-if="sortOrder === 'asc'" d="M6 15l6 6 6-6M12 3v18" />
-            <path v-else d="M6 9l6-6 6 6M12 21V3" />
-          </svg>
-        </button>
-
-        <button
-          class="ghost batch-btn"
-          :class="{ active: batchMode }"
-          :title="batchMode ? '退出批量选择' : '批量选择'"
-          @click="batchMode ? exitBatch() : (batchMode = true)"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 5h18M3 12h18M3 19h18" />
-          </svg>
-          批量
-        </button>
       </div>
 
       <PlaylistViewList
@@ -560,23 +602,65 @@ onUnmounted(stopAuto)
   border-color: var(--fluent-accent);
   color: var(--fluent-accent);
 }
-.batch-btn {
+/* 工具图标（搜索 / 排序 / 批量），位于固定按钮右侧 */
+.tool-icons {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  margin-left: auto;
 }
-.batch-btn svg {
-  width: 15px;
-  height: 15px;
+.tool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: var(--fluent-bg-hover);
+  color: var(--fluent-text);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
 }
-
-/* 工具栏（搜索 / 排序 / 批量） */
-.toolbar {
+.tool-icon:hover {
+  background: var(--fluent-bg-active);
+}
+.tool-icon.active {
+  background: var(--fluent-accent);
+  color: #fff;
+}
+.tool-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.tool-pop {
+  position: relative;
+  display: inline-flex;
+}
+.pop-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 2px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--fluent-border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+.pop-panel :deep(.win-combo) {
+  min-height: 34px;
+  border-radius: 8px;
+}
+
+/* 搜索展开行 */
+.search-row {
+  display: flex;
+  justify-content: flex-end;
 }
 .search-box {
   display: flex;
@@ -584,6 +668,8 @@ onUnmounted(stopAuto)
   gap: 6px;
   height: 34px;
   padding: 0 10px;
+  width: 280px;
+  max-width: 100%;
   border-radius: 18px;
   background: var(--fluent-bg-hover);
   border: 1px solid transparent;
@@ -600,7 +686,8 @@ onUnmounted(stopAuto)
   flex: none;
 }
 .search-input {
-  width: 150px;
+  flex: 1;
+  width: 100%;
   border: none;
   outline: none;
   background: transparent;
@@ -641,9 +728,5 @@ onUnmounted(stopAuto)
 .order-btn svg {
   width: 16px;
   height: 16px;
-}
-.sort-select :deep(.win-combo) {
-  min-height: 34px;
-  border-radius: 8px;
 }
 </style>
