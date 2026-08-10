@@ -29,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:settings', settings: AppSettings): void
   (e: 'close'): void
+  (e: 'open-sources'): void
 }>()
 
 const appVersion = ref('')
@@ -347,6 +348,12 @@ function manualCheckUpdate() {
         />
       </SettingCard>
 
+      <SettingCard title="在线设置">
+        <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
+          <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
+        </SettingRow>
+      </SettingCard>
+
       <SettingCard title="关于">
         <SettingRow label="fluentplayer" description="一个简洁的纯离线本地音乐播放器">
           <span class="setting-value">v{{ appVersion || '0.0.1' }}</span>
@@ -363,6 +370,20 @@ function manualCheckUpdate() {
   color: var(--fluent-text);
   overflow-y: auto;
   box-sizing: border-box;
+}
+.sources-entry {
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--fluent-border, #2a2a2a);
+  background: var(--fluent-bg-card, rgba(255, 255, 255, 0.04));
+  color: var(--fluent-text, #e6e6e6);
+  font-size: 13px;
+  cursor: pointer;
+}
+.sources-entry:hover {
+  background: var(--fluent-accent, #3b82f6);
+  border-color: var(--fluent-accent, #3b82f6);
+  color: #fff;
 }
 .folder-row {
   display: flex;

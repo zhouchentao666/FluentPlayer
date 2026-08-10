@@ -129,16 +129,27 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
         <li
           v-for="item in (pinnedOnline || [])"
           :key="item.source + '-' + item.id + '-' + item.kind"
-          class="pinned-item"
+          class="item pinned-item"
           @click="emit('open-online-item', item)"
         >
-          <img v-if="item.img" :src="item.img" class="pinned-cover" alt="" />
-          <div v-else class="pinned-cover placeholder"></div>
-          <div class="pinned-meta">
-            <div class="pinned-name">{{ item.name || '未知' }}</div>
-            <div class="pinned-badge">{{ sourceLabel(item.source) }} · {{ item.kind === 'album' ? '专辑' : '歌单' }}</div>
+          <div class="playlist-info">
+            <div class="playlist-icon online">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
+                  fill="currentColor"
+                />
+              </svg>
+            </div>
+            <div class="playlist-name">{{ item.name || '未知' }}</div>
           </div>
-          <button class="pinned-unpin" title="取消固定" @click.stop="emit('unpin-online', item.id)">×</button>
+          <div class="item-actions">
+            <button title="取消固定" @click.stop="emit('unpin-online', item.id)">
+              <svg viewBox="0 0 24 24" width="15" height="15">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
         </li>
       </ul>
       <PlaylistCreateInput
@@ -272,66 +283,77 @@ function onDropSongs(playlistId: string, payload: { sourcePlaylistId: string; so
   height: 16px;
 }
 
-/* 固定到侧栏的在线歌单 / 专辑（合并在歌单分组内） */
-.pinned-item {
+/* 固定到侧栏的在线歌单 / 专辑（样式与本地歌单 PlaylistItem 一致） */
+.item.pinned-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.18s ease;
 }
-.pinned-item:hover {
+.item.pinned-item:hover {
   background: var(--fluent-bg-hover);
 }
-.pinned-cover {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  object-fit: cover;
-  flex-shrink: 0;
-  background: var(--fluent-bg-card);
-}
-.pinned-cover.placeholder {
-  background: var(--fluent-bg-active);
-}
-.pinned-meta {
+.playlist-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }
-.pinned-name {
+.playlist-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--fluent-bg-active);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fluent-text-secondary);
+  flex-shrink: 0;
+}
+.playlist-icon.online {
+  color: var(--fluent-accent, #3b82f6);
+}
+.playlist-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.playlist-name {
+  flex: 1;
   font-size: 13px;
   color: var(--fluent-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.pinned-badge {
-  font-size: 11px;
-  color: var(--fluent-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
 }
-.pinned-unpin {
-  width: 22px;
-  height: 22px;
+.item.pinned-item:hover .item-actions {
+  opacity: 1;
+}
+.item-actions button {
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--fluent-text-secondary);
-  font-size: 15px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease;
-  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.pinned-item:hover .pinned-unpin {
-  opacity: 1;
-}
-.pinned-unpin:hover {
+.item-actions button:hover {
   background: var(--fluent-bg-active);
   color: var(--fluent-text);
 }

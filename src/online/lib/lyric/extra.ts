@@ -2,15 +2,7 @@ import { httpFetch } from "@online/lib/http"
 import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
-import createQrcDecrypt from "@online/lib/lyric/qrcDecrypt"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
-
-// QRC 解码器构建一次即可（内部会预生成 DES 密钥表）。
-let qrcDecoder: ((hex: string) => string) | null = null
-function getQrcDecoder(): (hex: string) => string {
-  if (!qrcDecoder) qrcDecoder = createQrcDecrypt()
-  return qrcDecoder
-}
 
 // js-md5 CommonJS/ESM interop (same pattern as src/lib/search/mg.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,139 +59,12 @@ interface TxLyricResponse {
   trans?: string
 }
 
-/**
- * QQ 音乐逐字歌词（QRC）。
- *
- * musicu.fcg 的 `crypt:1` 返回自定义 S 盒 Triple-DES + zlib 加密的 QRC，
- * 已由 `qrcDecrypt.ts` 纯 JS 解出（无需原生插件）。该接口要求【数字 songID】，
- * 而 song.meta.songId 存的是 songmid，故先用 songmid 换取数字 id。
- *
- * 解出的是 XML，逐字正文在 `LyricContent` 属性里，形如：
- *   `[19349,2531]今(19349,362)天(19711,376)我(20087,1793)`
- * 该格式可直接交给 AMLL 的 parseQrc。
- *
- * 任一环节失败都回落到 fcg_query_lyric_new.fcg 的纯 LRC。
- */
-async function getTxSongId(songmid: string): Promise<number | null> {
-  try {
-    const body = {
-      comm: { ct: "19", cv: "1859", uin: "0" },
-      req: {
-        method: "get_song_detail_yqq",
-        module: "music.pf_song_detail_svr",
-        param: { song_mid: songmid },
-      },
-    }
-    const res = await httpFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
-      method: "POST",
-      headers: { Referer: "https://y.qq.com", "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) return null
-    const data = (await res.json()) as { req?: { data?: { track_info?: { id?: number } } } }
-    return data?.req?.data?.track_info?.id ?? null
-  } catch {
-    return null
-  }
-}
-
-/** 取出 QRC XML 中 LyricContent 属性内的正文。 */
-function unwrapQrcXml(str: string): string {
-  if (!str) return ""
-  if (!/LyricContent="/.test(str)) return str
-  return decodeName(str.replace(/^[\S\s]*?LyricContent="/, "").replace(/"\/>[\S\s]*?$/, ""))
-}
-
-async function getTxQrc(songmid: string): Promise<LyricInfo | null> {
-  const songID = await getTxSongId(songmid)
-  if (!songID) return null
-  const body = {
-    comm: { ct: "19", cv: "1859", uin: "0" },
-    req: {
-      method: "GetPlayLyricInfo",
-      module: "music.musichallSong.PlayLyricInfo",
-      param: {
-        format: "json",
-        crypt: 1,
-        ct: 19,
-        cv: 1873,
-        interval: 0,
-        lrc_t: 0,
-        qrc: 1,
-        qrc_t: 0,
-        roma: 0,
-        roma_t: 0,
-        songID,
-        trans: 1,
-        trans_t: 0,
-        type: -1,
-      },
-    },
-  }
-  const res = await httpFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
-    method: "POST",
-    headers: { Referer: "https://y.qq.com", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) return null
-  const data = (await res.json()) as {
-    code?: number
-    req?: { code?: number; data?: { lyric?: string; trans?: string } }
-  }
-  if (data.code !== 0 || data.req?.code !== 0) return null
-  const raw = data.req?.data
-  if (!raw?.lyric) return null
-
-  const decrypt = getQrcDecoder()
-  const qrc = unwrapQrcXml(decrypt(raw.lyric))
-  if (!qrc.trim()) return null
-  // 翻译同样是加密的，但为普通 LRC（无字级时间）。
-  let tlyric = ""
-  if (raw.trans) {
-    try {
-      tlyric = unwrapQrcXml(decrypt(raw.trans))
-    } catch {
-      tlyric = ""
-    }
-  }
-
-  // 纯 LRC 回退版：行首 [ms,dur] 转 [mm:ss.SSS]，并去掉 (off,dur,0) 字标记。
-  const lrcLines: string[] = []
-  for (const line of qrc.split("\n")) {
-    const m = /^\[(\d+),\d+\]/.exec(line.trim())
-    if (!m) continue
-    let t = parseInt(m[1])
-    const ms = t % 1000
-    t = Math.floor(t / 1000)
-    const mm = String(Math.floor(t / 60)).padStart(2, "0")
-    const ss = String(t % 60).padStart(2, "0")
-    const words = line
-      .trim()
-      .replace(/^\[\d+,\d+\]/, "")
-      .replace(/\(\d+,\d+,\d+\)/g, "")
-    lrcLines.push(`[${mm}:${ss}.${String(ms).padStart(3, "0")}]${words}`)
-  }
-  if (!lrcLines.length) return null
-
-  return {
-    lyric: lrcLines.join("\n"),
-    tlyric: tlyric.trim() || null,
-    lxlyric: qrc,
-  }
-}
-
-// 先试逐字 QRC，失败再退回旧的 base64 纯 LRC 接口。
+// QQ 音乐歌词。直接用 fcg_query_lyric_new.fcg 的 base64 纯 LRC 接口。
 // song.meta.songId 为 songmid（形如 "0039MnYb0qxYhV"）。
 export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const songmid = song.meta.songId
     if (!songmid) return null
-    try {
-      const qrc = await getTxQrc(songmid)
-      if (qrc) return qrc
-    } catch {
-      // 逐字失败 -> 走下面的纯 LRC
-    }
     const url =
       `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(songmid)}` +
       `&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8` +

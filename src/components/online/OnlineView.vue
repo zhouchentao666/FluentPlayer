@@ -6,7 +6,6 @@ import type { Album } from '@online/lib/albums'
 import type { MusicInfo } from '@online/types/music'
 import type { AppSettings, PinnedOnlineItem } from '../../composables/useConfig'
 import { musicInfoToSong } from '@online/player'
-import { useOnlineSources } from '@online/store'
 import { parsePlaylistLink } from '@online/lib/playlists/openLink'
 import { toast } from '../../composables/useToast'
 import OnlineSearch from './OnlineSearch.vue'
@@ -14,7 +13,6 @@ import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineCharts from './OnlineCharts.vue'
 import ComboBox, { type ComboBoxOption } from '../settings/ComboBox.vue'
-import ToggleSwitch from '../settings/ToggleSwitch.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
 import type { OnlineTab } from '../../composables/useConfig'
 
@@ -32,6 +30,7 @@ const emit = defineEmits<{
   (e: 'open-detail', target: OpenTarget): void
   (e: 'update:tab', tab: OnlineTab): void
   (e: 'comment', m: MusicInfo): void
+  (e: 'open-sources'): void
 }>()
 
 const settings = inject<Ref<AppSettings>>('settings')
@@ -44,11 +43,7 @@ const TABS: { id: OnlineTab; label: string }[] = [
 ]
 const tabTitle = computed(() => TABS.find((t) => t.id === props.tab)?.label ?? '')
 
-/** 音源管理改为顶栏按钮弹层，让主标签维持「歌单 / 专辑 / 排行榜 / 搜索」四项。 */
-const sourcesModal = ref(false)
-
 const addMenu = ref<{ musics: MusicInfo[]; title: string } | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
 
 function onPlay(musics: MusicInfo[], index: number) {
   emit('play-songs', musics.map(musicInfoToSong), index)
@@ -140,55 +135,7 @@ async function openExternalLink() {
   }
 }
 
-// ---- 自定义音源 ----
-const { state, importScript, importScriptFromUrl, removeScript, toggleEnabled, initOnlineSources } =
-  useOnlineSources()
-const importUrl = ref('')
-
-onMounted(() => {
-  initOnlineSources().catch(() => {})
-})
-
-async function onPickFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = input.files ? Array.from(input.files) : []
-  if (files.length === 0) return
-  let okCount = 0
-  let failCount = 0
-  const errors: string[] = []
-  for (const file of files) {
-    try {
-      const text = await file.text()
-      await importScript(text)
-      okCount += 1
-    } catch (err) {
-      failCount += 1
-      errors.push(`${file.name}: ${(err as Error).message}`)
-    }
-  }
-  if (okCount > 0) {
-    toast(`已导入 ${okCount} 个音源${failCount > 0 ? `，${failCount} 个失败` : ''}`, failCount > 0 ? 'warning' : 'success')
-  } else if (errors.length > 0) {
-    toast(errors[0], 'error')
-  }
-  input.value = ''
-}
-async function onImportUrl() {
-  const u = importUrl.value.trim()
-  if (!u) return
-  try {
-    await importScriptFromUrl(u)
-    toast('音源已导入', 'success')
-    importUrl.value = ''
-  } catch (err) {
-    toast((err as Error).message, 'error')
-  }
-}
-function fmtPlatforms(s?: Record<string, unknown>): string {
-  if (!s) return '通用'
-  const keys = Object.keys(s)
-  return keys.length ? keys.join(' / ') : '通用'
-}
+// ---- 自定义音源：移至独立音源管理界面 (OnlineSources.vue) ----
 </script>
 
 <template>
@@ -200,7 +147,7 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           <svg viewBox="0 0 16 16" width="15" height="15"><path d="M6.5 9.5l3-3M7 4h4v4M9.5 6.5L12 4M4 12V6h3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           打开链接
         </button>
-        <button class="open-link-btn" title="自定义音源管理" @click="sourcesModal = true">
+        <button class="open-link-btn" title="自定义音源管理" @click="emit('open-sources')">
           <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 2v12M3.5 5.5v5M12.5 5.5v5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
           音源
         </button>
@@ -233,58 +180,6 @@ function fmtPlatforms(s?: Record<string, unknown>): string {
           @comment="(m) => emit('comment', m)"
         />
       </Transition>
-    </div>
-
-    <!-- 自定义音源管理 -->
-    <div v-if="sourcesModal" class="modal-mask" @click.self="sourcesModal = false">
-      <div class="sources-modal">
-        <div class="sources-view">
-        <div class="sources-head">
-          <h2 class="title">自定义音源</h2>
-          <div class="import-row">
-            <button class="ghost" @click="fileInput?.click()">导入脚本文件</button>
-            <input
-              ref="fileInput"
-              type="file"
-              accept=".js,.txt"
-              multiple
-              style="display: none"
-              @change="onPickFile"
-            />
-            <input v-model="importUrl" class="url-input" placeholder="粘贴音源脚本链接…" />
-            <button class="ghost" @click="onImportUrl">从链接导入</button>
-          </div>
-        </div>
-
-        <div v-if="state.error" class="src-error">{{ state.error }}</div>
-
-        <div v-if="state.scripts.length === 0" class="state">
-          暂无自定义音源。导入 LX 格式音源脚本后，即可在播放 / 搜索中自动使用。
-        </div>
-
-        <div v-else class="src-list">
-          <div v-for="s in state.scripts" :key="s.id" class="src-item">
-            <div class="src-main">
-              <div class="src-name">{{ s.name }}</div>
-              <div class="src-meta">
-                <span v-if="s.author">作者：{{ s.author }}</span>
-                <span v-if="s.version">版本：{{ s.version }}</span>
-                <span>平台：{{ fmtPlatforms(s.sources) }}</span>
-              </div>
-            </div>
-            <div class="src-actions">
-              <ToggleSwitch
-                :model-value="s.enabled"
-                :aria-label="`启用音源 ${s.name}`"
-                @update:model-value="toggleEnabled(s.id)"
-              />
-              <button class="del" title="删除" @click="removeScript(s.id)">删除</button>
-            </div>
-          </div>
-        </div>
-        </div>
-        <button class="cancel" @click="sourcesModal = false">关闭</button>
-      </div>
     </div>
 
     <!-- 打开外部歌单 / 专辑链接 -->

@@ -19,6 +19,7 @@ import UpdateDialog from './components/UpdateDialog.vue'
 import PlaylistView from './components/PlaylistView.vue'
 import OnlineView from './components/online/OnlineView.vue'
 import OnlineDetail from './components/online/OnlineDetail.vue'
+import OnlineSources from './components/online/OnlineSources.vue'
 import SponsorView from './components/SponsorView.vue'
 import CommentView from './components/online/CommentView.vue'
 import { downloadSong, downloadMany } from './online/lib/download'
@@ -47,7 +48,7 @@ import { useMediaSession } from './composables/useMediaSession'
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
 
-const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'sponsor' | 'online-comments'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sources' | 'sponsor' | 'online-comments'>('main')
 
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
@@ -532,7 +533,7 @@ onUnmounted(() => {
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
-        :active-view="view === 'online-detail' || view === 'online-comments' ? 'online' : view"
+        :active-view="view === 'online-detail' || view === 'online-comments' || view === 'online-sources' ? 'online' : view"
         :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
@@ -570,6 +571,7 @@ onUnmounted(() => {
             :settings="settings"
             @update:settings="updateSettings"
             @close="view = 'main'"
+            @open-sources="view = 'online-sources'"
           />
           <OnlineView
             v-else-if="view === 'online'"
@@ -583,6 +585,7 @@ onUnmounted(() => {
             @add-to-playlist="addSongs"
             @comment="openComments"
             @open-detail="openOnlineItem"
+            @open-sources="view = 'online-sources'"
           />
           <OnlineDetail
             v-else-if="view === 'online-detail' && onlineDetail"
@@ -601,6 +604,11 @@ onUnmounted(() => {
             @download-all="(songs) => downloadMany(songs.map((s) => s.online!).filter(Boolean))"
             @toggle-pin="onTogglePinOnline"
             @comment="(song) => song.online && openComments(song.online)"
+            @back="view = 'online'"
+          />
+          <OnlineSources
+            v-else-if="view === 'online-sources'"
+            :key="'online-sources'"
             @back="view = 'online'"
           />
           <SponsorView
