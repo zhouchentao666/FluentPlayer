@@ -132,6 +132,7 @@ const settings = ref<AppSettings>({
   playlistSorts: {},
   localMetadata: {},
   pinnedOnlinePlaylists: [],
+  onlineSorts: {},
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
@@ -591,6 +592,7 @@ onUnmounted(() => {
             :kind="onlineDetail.kind"
             :current-song="audio.currentSong.value"
             :playlists="playlists"
+            :settings="settings"
             :pinned="settings.pinnedOnlinePlaylists.some((p) => p.id === (onlineDetail?.id ?? ''))"
             @play="(songs, index) => audio.playSongs(songs, index)"
             @queue="audio.addToQueue"

@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 
 import type { MusicInfo } from '@online/types/music'
 import type { Song, Playlist as LocalPlaylist } from '../../types'
-import type { PinnedOnlineItem } from '../../composables/useConfig'
+import type { PinnedOnlineItem, AppSettings } from '../../composables/useConfig'
 import type { SortMode } from '../../composables/usePlaylistView'
 import { getPlaylistDetail } from '@online/lib/playlists'
 import { getAlbumDetail } from '@online/lib/albums'
@@ -19,6 +19,7 @@ const props = defineProps<{
   kind: 'playlist' | 'album'
   currentSong: Song | null
   playlists: LocalPlaylist[]
+  settings: AppSettings
   pinned?: boolean
 }>()
 
@@ -53,6 +54,28 @@ const currentId = computed(() => props.currentSong?.id ?? '')
 const cover = computed(() => (coverFailed.value ? null : info.value?.img ?? null))
 /** 与本地歌单共用统一的歌曲列表组件 */
 const fullList = computed(() => list.value.map(musicInfoToSong))
+
+/** 在线歌单排序保存：key = source:id:kind */
+const detailKey = computed(() => `${props.source}:${props.id}:${props.kind}`)
+/** 用户自定义排序覆盖后的完整列表（无覆盖时等于 fullList） */
+const orderedFullList = computed<Song[]>(() => {
+  const order = props.settings.onlineSorts?.[detailKey.value]
+  if (!order || order.length === 0) return fullList.value
+  const byId = new Map(fullList.value.map((s) => [s.id, s]))
+  const ordered: Song[] = []
+  for (const id of order) {
+    const s = byId.get(id)
+    if (s) {
+      ordered.push(s)
+      byId.delete(id)
+    }
+  }
+  // 新出现的歌曲（覆盖中未记录的）追加到末尾，保持原顺序
+  for (const s of fullList.value) {
+    if (byId.has(s.id)) ordered.push(s)
+  }
+  return ordered
+})
 
 // ---- 搜索 / 排序 / 批量 ----
 type SortOrder = 'asc' | 'desc'
@@ -110,7 +133,7 @@ function sortKey(song: Song, mode: SortMode): string | number {
 }
 
 const displaySongs = computed<Song[]>(() => {
-  let result = fullList.value
+  let result = orderedFullList.value
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter((s) =>
@@ -152,6 +175,15 @@ function clearSelection() {
 function exitBatch() {
   batchMode.value = false
   clearSelection()
+}
+
+/** 保存自定义排序：把重排后的歌曲 id 顺序写入本地配置 */
+function onReorder(ordered: Song[]) {
+  if (!props.settings.onlineSorts) props.settings.onlineSorts = {}
+  props.settings.onlineSorts = {
+    ...props.settings.onlineSorts,
+    [detailKey.value]: ordered.map((s) => s.id),
+  }
 }
 
 // 「收藏歌单」：选择本地歌单后整张收藏
@@ -373,6 +405,7 @@ onUnmounted(stopAuto)
         @toggle="toggleSelection"
         @add-to-playlist="(pid, s) => emit('add-playlist', pid, s)"
         @comment="(s) => emit('comment', s)"
+        @reorder="onReorder"
       />
 
       <PlaylistBatchBar

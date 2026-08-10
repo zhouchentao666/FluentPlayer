@@ -137,6 +137,8 @@ export interface AppSettings {
   playlistSorts: Record<string, PlaylistSort>
   localMetadata: Record<string, LocalSongMetadata>
   pinnedOnlinePlaylists: PinnedOnlineItem[]
+  /** 在线歌单的自定义排序覆盖：key 为 `${source}:${id}:${kind}`，value 为排序后的歌曲 id 数组。 */
+  onlineSorts: Record<string, string[]>
 }
 
 export interface ConfigPlayback {
@@ -246,6 +248,7 @@ export function useConfig(
           playlistSorts: (config.settings.playlistSorts as Record<string, PlaylistSort>) ?? {},
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
           pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
+          onlineSorts: (config.settings.onlineSorts as Record<string, string[]>) ?? {},
         }
       }
       if (config.playback) {

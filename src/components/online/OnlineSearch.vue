@@ -22,6 +22,7 @@ const emit = defineEmits<{
   (e: 'download', m: MusicInfo): void
   (e: 'comment', m: MusicInfo): void
   (e: 'open', item: Playlist | Album, kind: 'playlist' | 'album'): void
+  (e: 'recognize'): void
 }>()
 
 type Tab = 'song' | 'playlist' | 'album'
@@ -200,6 +201,13 @@ function onCardOpen(item: Playlist | Album) {
         @keyup.enter="runSearch(1)"
       />
       <button class="search-go" @click="runSearch(1)">搜索</button>
+      <button class="recognize-entry" title="听歌识曲" @click="emit('recognize')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+        </svg>
+        听歌识曲
+      </button>
     </div>
 
     <div class="search-controls">
@@ -328,6 +336,28 @@ function onCardOpen(item: Playlist | Album) {
   color: #fff;
   font-size: 14px;
   cursor: pointer;
+}
+.recognize-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--fluent-border);
+  border-radius: 10px;
+  background: var(--fluent-bg-card);
+  color: var(--fluent-text);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.recognize-entry:hover {
+  background: var(--fluent-bg-hover);
+  border-color: var(--fluent-accent);
+}
+.recognize-entry svg {
+  width: 16px;
+  height: 16px;
 }
 .search-controls {
   display: flex;
