@@ -337,6 +337,9 @@ function manualCheckUpdate() {
             @update:model-value="value => update({ systemMediaControl: value })"
           />
         </SettingRow>
+        <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
+          <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
+        </SettingRow>
       </SettingCard>
 
       <SettingCard title="桌面歌词">
@@ -346,12 +349,6 @@ function manualCheckUpdate() {
           @update:config="updateDesktopLyric"
           @update:enabled="updateDesktopLyricEnabled"
         />
-      </SettingCard>
-
-      <SettingCard title="在线设置">
-        <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
-          <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
-        </SettingRow>
       </SettingCard>
 
       <SettingCard title="关于">

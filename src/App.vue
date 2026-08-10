@@ -52,7 +52,6 @@ const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sour
 
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
-let dragDepth = 0
 let unlistenDrag: (() => void) | null = null
 
 async function handleDropPaths(paths: string[]) {
@@ -74,15 +73,12 @@ onMounted(async () => {
   try {
     unlistenDrag = onDragDrop({
       onEnter: () => {
-        dragDepth += 1
         dragActive.value = true
       },
       onLeave: () => {
-        dragDepth = Math.max(0, dragDepth - 1)
-        if (dragDepth === 0) dragActive.value = false
+        dragActive.value = false
       },
       onDrop: (paths) => {
-        dragDepth = 0
         dragActive.value = false
         void handleDropPaths(paths)
       },

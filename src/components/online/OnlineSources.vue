@@ -142,9 +142,12 @@ onMounted(() => {
 
 <style scoped>
 .osources-view {
+  height: 100%;
+  overflow-y: auto;
   padding: 22px 28px;
   max-width: 880px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 .osources-topbar {
   margin-bottom: 8px;
