@@ -171,9 +171,14 @@ const KW_TIME_EXP = /^\[([\d:.]*)\]/
 const KW_EXIST_TIME_EXP = /\[\d{1,2}:.*\d{1,4}\]/
 const KW_WORD_TIME_ALL = /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g
 
-// Parse plain LRC text into { lyric, tlyric }. Mirrors kw/lyric.js
-// parseLrc + transformLrc. KuWo word-timed lyric is intentionally dropped —
-// the player only keeps Kugou (kg) word-timed lyrics.
+/**
+ * 解析酷我 LRC，产出 { lyric, tlyric, lxlyric }。对应 kw/lyric.js 的
+ * parseLrc + transformLrc。
+ *
+ * 酷我逐字标记形如 `[00:28.480]<0,160>我<160,420>带`，即行内 `<相对偏移,时长>`
+ * 位于字【之前】，偏移相对行首。转成 AMLL 的 A2 语法 `<mm:ss.SSS>` 绝对时间后，
+ * 交给 parseLrcA2 渲染。没有字级时间的歌曲则只返回普通 LRC。
+ */
 function kwParseLrc(text: string): LyricInfo | null {
   const lines = text.split(/\r\n|\r|\n/)
   const lrcArr: { time: string; text: string }[] = []
@@ -198,7 +203,8 @@ function kwParseLrc(text: string): LyricInfo | null {
   const toText = (list: { time: string; text: string }[]): string =>
     list.map((l) => `[${l.time}]${l.text}`).join("\n")
 
-  let lyric = toText(parts.lrc).replace(KW_WORD_TIME_ALL, "")
+  const rawLyric = toText(parts.lrc)
+  let lyric = rawLyric.replace(KW_WORD_TIME_ALL, "")
   if (!KW_EXIST_TIME_EXP.test(lyric)) return null
   let tlyric = parts.lrcT.length ? toText(parts.lrcT).replace(KW_WORD_TIME_ALL, "") : ""
   lyric = lyric.trim()
@@ -206,7 +212,51 @@ function kwParseLrc(text: string): LyricInfo | null {
   return {
     lyric,
     tlyric: tlyric || null,
+    lxlyric: kwToA2(rawLyric),
   }
+}
+
+/** `[mm:ss.SSS]` -> 毫秒；解析失败返回 null。 */
+function kwTagToMs(tag: string): number | null {
+  const m = /^(\d+):(\d+)(?:\.(\d+))?$/.exec(tag)
+  if (!m) return null
+  const frac = m[3] ? parseInt(m[3].padEnd(3, "0").slice(0, 3)) : 0
+  return parseInt(m[1]) * 60000 + parseInt(m[2]) * 1000 + frac
+}
+
+/** 毫秒 -> `mm:ss.SSS`。 */
+function kwMsToTag(ms: number): string {
+  const mm = String(Math.floor(ms / 60000)).padStart(2, "0")
+  const ss = String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")
+  return `${mm}:${ss}.${String(ms % 1000).padStart(3, "0")}`
+}
+
+/**
+ * 把酷我的 `[mm:ss.SSS]<相对偏移,时长>字` 转成 AMLL A2 的
+ * `[mm:ss.SSS]<mm:ss.SSS>字`（绝对时间）。无字级时间时返回 null。
+ */
+function kwToA2(text: string): string | null {
+  const out: string[] = []
+  let hasWordTime = false
+  for (const raw of text.split("\n")) {
+    const line = raw.trim()
+    const m = KW_TIME_EXP.exec(line)
+    if (!m) continue
+    const base = kwTagToMs(m[1])
+    const body = line.replace(KW_TIME_EXP, "")
+    if (base == null || !/<-?\d+,-?\d+(?:,-?\d+)?>/.test(body)) {
+      out.push(line)
+      continue
+    }
+    hasWordTime = true
+    const converted = body.replace(
+      /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g,
+      (_all, off: string) => `<${kwMsToTag(Math.max(0, base + parseInt(off)))}>`
+    )
+    out.push(`[${m[1]}]${converted}`)
+  }
+  if (!hasWordTime) return null
+  return out.join("\n")
 }
 
 async function getKwLyricEncrypted(songId: string): Promise<LyricInfo | null> {
