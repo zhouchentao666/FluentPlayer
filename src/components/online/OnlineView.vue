@@ -12,7 +12,6 @@ import OnlineSearch from './OnlineSearch.vue'
 import OnlineHotPlaylists from './OnlineHotPlaylists.vue'
 import OnlineHotAlbums from './OnlineHotAlbums.vue'
 import OnlineCharts from './OnlineCharts.vue'
-import RecognizeView from './RecognizeView.vue'
 import ComboBox, { type ComboBoxOption } from '../settings/ComboBox.vue'
 import { downloadSong, downloadMany } from '@online/lib/download'
 import type { OnlineTab } from '../../composables/useConfig'
@@ -32,6 +31,7 @@ const emit = defineEmits<{
   (e: 'update:tab', tab: OnlineTab): void
   (e: 'comment', m: MusicInfo): void
   (e: 'open-sources'): void
+  (e: 'recognize'): void
 }>()
 
 const settings = inject<Ref<AppSettings>>('settings')
@@ -83,27 +83,9 @@ function onOpen(item: Playlist | Album, kind: 'playlist' | 'album') {
   })
 }
 
-// ---- 听歌识曲 ----
-const showRecognize = ref(false)
+// ---- 听歌识曲（改为在 App 中打开独立界面） ----
 function openRecognize() {
-  showRecognize.value = true
-}
-function closeRecognize() {
-  showRecognize.value = false
-}
-function onRecognizePlay(song: Song) {
-  emit('play-songs', [song], 0)
-}
-function onRecognizeQueue(song: Song) {
-  emit('add-to-queue', song)
-}
-function onRecognizeAddPlaylist(song: Song) {
-  const info = song.online
-  if (info) openAddMenu([info], '收藏到歌单')
-}
-function onRecognizeDownload(song: Song) {
-  const info = song.online
-  if (info) void downloadSong(info)
+  emit('recognize')
 }
 
 // ---- 固定到侧栏 ----
@@ -205,16 +187,6 @@ async function openExternalLink() {
           @comment="(m) => emit('comment', m)"
         />
       </Transition>
-
-      <RecognizeView
-        v-if="showRecognize"
-        class="recognize-layer"
-        @back="closeRecognize"
-        @play="onRecognizePlay"
-        @queue="onRecognizeQueue"
-        @add-playlist="onRecognizeAddPlaylist"
-        @download="onRecognizeDownload"
-      />
     </div>
 
     <!-- 打开外部歌单 / 专辑链接 -->
@@ -320,13 +292,6 @@ async function openExternalLink() {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-.recognize-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  background: var(--fluent-bg-page);
-  overflow-y: auto;
 }
 /*
  * 在线子标签切换：与主界面 view-flip 动画保持一致

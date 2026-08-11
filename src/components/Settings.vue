@@ -104,6 +104,11 @@ const coverTransitions = [
   { value: 'slide-both', label: '左右滑入滑出' },
 ] as const
 
+const fullScreenStyles = [
+  { value: 'classic', label: '经典' },
+  { value: 'am', label: 'AM' },
+] as const
+
 const { fonts } = useFontList()
 const fontOptions = computed(() => {
   const list = [...fonts.value]
@@ -205,6 +210,13 @@ function manualCheckUpdate() {
       <WindowEffectSettings :settings="settings" @update="update" />
 
       <SettingCard title="全屏播放器">
+        <SettingRow label="播放器风格" description="经典=当前布局（下歌词+上封面）；AM=Apple Music 风格（左封面+右逐字歌词）">
+          <SegmentedControl
+            :options="fullScreenStyles"
+            :model-value="settings.fullScreenStyle"
+            @update:model-value="value => update({ fullScreenStyle: value as 'classic' | 'am' })"
+          />
+        </SettingRow>
         <SettingRow label="背景效果" description="选择全屏播放器的背景效果">
           <SegmentedControl
             :options="fullScreenBackgrounds"

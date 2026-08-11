@@ -22,6 +22,7 @@ import OnlineDetail from './components/online/OnlineDetail.vue'
 import OnlineSources from './components/online/OnlineSources.vue'
 import SponsorView from './components/SponsorView.vue'
 import CommentView from './components/online/CommentView.vue'
+import RecognizeView from './components/online/RecognizeView.vue'
 import { downloadSong, downloadMany } from './online/lib/download'
 import PlayerFooter from './components/PlayerFooter.vue'
 import PlayerDetail from './components/player/PlayerDetail.vue'
@@ -48,7 +49,7 @@ import { useMediaSession } from './composables/useMediaSession'
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
 
-const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sources' | 'sponsor' | 'online-comments'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sources' | 'sponsor' | 'online-comments' | 'identify'>('main')
 
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
@@ -136,6 +137,7 @@ const settings = ref<AppSettings>({
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
+  fullScreenStyle: 'classic',
 })
 
 const playbackState = ref<ConfigPlayback>({
@@ -377,6 +379,11 @@ function openComments(m?: MusicInfo) {
   view.value = 'online-comments'
 }
 
+function openIdentify() {
+  showPlayerDetail.value = false
+  view.value = 'identify'
+}
+
 function cyclePlayMode() {
   const modes: PlayMode[] = ['sequential', 'single', 'reverse', 'stop', 'shuffle']
   playMode.value = modes[(modes.indexOf(playMode.value) + 1) % modes.length]
@@ -530,7 +537,7 @@ onUnmounted(() => {
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
-        :active-view="view === 'online-detail' || view === 'online-comments' || view === 'online-sources' ? 'online' : view"
+        :active-view="view === 'online-detail' || view === 'online-comments' || view === 'online-sources' || view === 'identify' ? 'online' : view"
         :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
@@ -583,6 +590,7 @@ onUnmounted(() => {
             @comment="openComments"
             @open-detail="openOnlineItem"
             @open-sources="view = 'online-sources'"
+            @recognize="openIdentify"
           />
           <OnlineDetail
             v-else-if="view === 'online-detail' && onlineDetail"
@@ -619,6 +627,15 @@ onUnmounted(() => {
             :key="'online-comments'"
             :song="commentTarget"
             @close="view = 'online'"
+          />
+          <RecognizeView
+            v-else-if="view === 'identify'"
+            :key="'identify'"
+            @back="view = 'online'"
+            @play="(s: any) => audio.playSongs([s], 0)"
+            @queue="(s: any) => audio.addToQueue(s)"
+            @add-playlist="(s: any) => currentPlaylist && addSongs(currentPlaylist.id, [s])"
+            @download="(s: any) => downloadSong(s)"
           />
         </Transition>
       </main>
@@ -670,6 +687,7 @@ onUnmounted(() => {
       :background-mode="settings.fullScreenBackground"
       :immersive-player-bar="settings.immersivePlayerBar"
       :cover-transition="settings.coverTransition"
+      :full-screen-style="settings.fullScreenStyle"
       @close="togglePlayerDetail"
       @seek="audio.seek"
     />

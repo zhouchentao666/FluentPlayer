@@ -20,9 +20,10 @@ let afpLoading: Promise<void> | null = null
 
 /**
  * 在浏览器(Tauri)环境加载 afp 指纹库。
- * CeruMusic 在 Electron 下靠 Node require('./afp.wasm.js') 加载 wasm 二进制，
- * 但浏览器没有 require，这里用 Function 注入方式把 WASM_BINARY 提取到全局，
- * 并提供一个 require shim，使 afp.js 内部的 require('./afp.wasm.js') 能取到。
+ * public/afp.wasm.js 已由构建期填入真实 base64 二进制（格式：const WASM_BINARY = '...'），
+ * 这里直接以文本读取并提取 WASM_BINARY 字符串，避免用 new Function 在内存中整段执行
+ * 308KB 脚本造成的 OOM（Aborted(OOM)）。再把 WASM_BINARY 暴露到全局，并提供 require
+ * shim，使 afp.js 内部的 require('./afp.wasm.js') 能取到。
  */
 export async function ensureAfpLoaded(): Promise<void> {
   if (window.GenerateFP) return
@@ -32,12 +33,9 @@ export async function ensureAfpLoaded(): Promise<void> {
     if (!window.WASM_BINARY) {
       try {
         const wasmText = await (await fetch('/afp.wasm.js')).text()
-        const mod: { exports: { WASM_BINARY?: string } } = { exports: {} }
-        // afp.wasm.js 是 'use strict'; const WASM_BINARY = "base64..."; module.exports = {...}
-        // 用 Function 包裹执行并取出 WASM_BINARY
-        // eslint-disable-next-line @typescript-eslint/no-implied-eval
-        new Function('module', 'exports', wasmText)(mod, mod.exports)
-        const bin = mod.exports.WASM_BINARY ?? (window as unknown as { WASM_BINARY?: string }).WASM_BINARY
+        // 形如： const WASM_BINARY =\n  'BASE64...'
+        const m = wasmText.match(/WASM_BINARY\s*=\s*'((?:[A-Za-z0-9+/=]|\\\n|\s)*)'/)
+        const bin = m ? m[1].replace(/\\\n/g, '').replace(/\s/g, '') : ''
         if (bin) window.WASM_BINARY = bin
       } catch {
         // 忽略，下次重试

@@ -20,6 +20,7 @@ const props = defineProps<{
   immersivePlayerBar?: boolean
   coverTransition?: 'fade' | 'slide-left' | 'slide-both'
   hideLyrics?: boolean
+  fullScreenStyle?: 'classic' | 'am'
 }>()
 
 const emit = defineEmits<{
@@ -88,7 +89,7 @@ watch(() => props.show, (visible) => {
 <template>
   <div
     class="player-detail"
-    :class="{ visible: props.show }"
+    :class="{ visible: props.show, am: props.fullScreenStyle === 'am' && props.show }"
   >
     <div class="player-inner">
       <div
@@ -121,23 +122,56 @@ watch(() => props.show, (visible) => {
         @top-chrome-leave="handleTopChromeLeave"
       />
 
-      <PlayerDetailLeft
-        :cover-url="props.coverUrl"
-        :is-playing="props.isPlaying"
-        :is-expanded="props.show"
-        :show-lyrics="positionLyrics"
-        :cover-transition="props.coverTransition ?? 'fade'"
-        @toggle-lyrics="toggleLyrics"
-      />
+      <!-- AM（Apple Music）风格：左侧大封面 + 右侧逐字歌词 -->
+      <div
+        v-if="props.fullScreenStyle === 'am' && props.show"
+        class="am-body"
+      >
+        <div class="am-cover">
+          <div class="am-cover-art">
+            <img
+              v-if="props.coverUrl"
+              :src="props.coverUrl"
+              :alt="props.currentSong?.title"
+              draggable="false"
+            />
+          </div>
+          <div class="am-meta">
+            <div class="am-title" :title="props.currentSong?.title">{{ props.currentSong?.title }}</div>
+            <div class="am-artist" :title="props.currentSong?.online?.singer ?? props.currentSong?.metadata?.artist">{{ props.currentSong?.online?.singer ?? props.currentSong?.metadata?.artist }}</div>
+          </div>
+        </div>
+        <PlayerDetailLyrics
+          class="am-lyrics"
+          :lyrics="props.lyrics"
+          :current-time="props.currentTime"
+          :show="showLyrics && !props.hideLyrics"
+          :is-playing="props.isPlaying"
+          :is-fullscreen="isFullscreen"
+          @seek="emit('seek', $event)"
+        />
+      </div>
 
-      <PlayerDetailLyrics
-        :lyrics="props.lyrics"
-        :current-time="props.currentTime"
-        :show="showLyrics && !props.hideLyrics"
-        :is-playing="props.isPlaying"
-        :is-fullscreen="isFullscreen"
-        @seek="emit('seek', $event)"
-      />
+      <!-- 经典风格：顶部封面 + 右侧歌词（原有布局） -->
+      <template v-else>
+        <PlayerDetailLeft
+          :cover-url="props.coverUrl"
+          :is-playing="props.isPlaying"
+          :is-expanded="props.show"
+          :show-lyrics="positionLyrics"
+          :cover-transition="props.coverTransition ?? 'fade'"
+          @toggle-lyrics="toggleLyrics"
+        />
+
+        <PlayerDetailLyrics
+          :lyrics="props.lyrics"
+          :current-time="props.currentTime"
+          :show="showLyrics && !props.hideLyrics"
+          :is-playing="props.isPlaying"
+          :is-fullscreen="isFullscreen"
+          @seek="emit('seek', $event)"
+        />
+      </template>
     </div>
   </div>
 </template>
@@ -190,5 +224,80 @@ watch(() => props.show, (visible) => {
   inset: 0;
   z-index: -1;
   background: #0a0a0a;
+}
+
+/* ---- AM（Apple Music）风格：左封面 + 右逐字歌词 ---- */
+.am-body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 96px 64px 140px;
+  box-sizing: border-box;
+}
+
+.am-cover {
+  flex: 0 0 auto;
+  width: 42vh;
+  max-width: 46%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+.am-cover-art {
+  width: 42vh;
+  height: 42vh;
+  max-width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.am-cover-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.am-meta {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.am-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.am-artist {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* AM 模式下歌词面板占右侧剩余空间（覆盖 .lyrics-panel 默认的 45% 右侧定位） */
+.player-detail.am :deep(.lyrics-panel) {
+  width: 46%;
+  padding-left: 0;
+  padding-right: 40px;
+}
+
+.player-detail.am :deep(.lyric-player) {
+  max-width: 100%;
 }
 </style>
