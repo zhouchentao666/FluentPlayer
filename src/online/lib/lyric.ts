@@ -52,8 +52,9 @@ const KW_KEY = new TextEncoder().encode("yeelion") // 7 bytes
 
 // XOR `params` with the rolling "yeelion" key, base64-encode (buildParams).
 function kwBuildParams(id: string): string {
-  // 纯 LRC 模式（不带 isGetLyricx），避免返回带字时间的 lyricx。
-  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}`
+  // 必须带 isGetLyricx=1，否则 kuwo 只返回纯 LRC，没有逐字歌词
+  // （这正是之前酷我永远不显示逐字的根因：不带该参数端点不返回 lyricx）。
+  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}&isGetLyricx=1`
   const src = new TextEncoder().encode(params)
   const out = new Uint8Array(src.length)
   let i = 0
