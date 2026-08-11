@@ -137,7 +137,6 @@ const settings = ref<AppSettings>({
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
-  fullScreenStyle: 'classic',
 })
 
 const playbackState = ref<ConfigPlayback>({
@@ -687,7 +686,6 @@ onUnmounted(() => {
       :background-mode="settings.fullScreenBackground"
       :immersive-player-bar="settings.immersivePlayerBar"
       :cover-transition="settings.coverTransition"
-      :full-screen-style="settings.fullScreenStyle"
       @close="togglePlayerDetail"
       @seek="audio.seek"
     />

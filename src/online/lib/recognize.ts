@@ -93,11 +93,18 @@ function mergeChannels(buffer: AudioBuffer): Float32Array {
 export async function generateFingerprint(audioBuffer: AudioBuffer): Promise<string> {
   await ensureAfpLoaded()
   if (!window.GenerateFP) throw new Error('指纹库未就绪')
-  const mono = audioBuffer.numberOfChannels > 1 ? mergeChannels(audioBuffer) : audioBuffer.getChannelData(0)
+  // 只取前 15 秒原始数据，避免对整段长音频分配/重采样造成内存压力
+  const maxSrc = Math.min(audioBuffer.length, 15 * audioBuffer.sampleRate)
+  const mono = audioBuffer.numberOfChannels > 1
+    ? mergeChannels({ ...audioBuffer, length: maxSrc } as AudioBuffer)
+    : audioBuffer.getChannelData(0).subarray(0, maxSrc)
   const resampled = audioBuffer.sampleRate === TARGET_RATE
     ? mono
     : linearResampleTo8k(mono, audioBuffer.sampleRate)
-  return window.GenerateFP(resampled as unknown as Float32Array)
+  // 只取前 15 秒（8kHz 单声道），避免过大音频一次性送入 wasm 导致内存不足 OOM
+  const MAX_SAMPLES = 15 * TARGET_RATE
+  const slice = resampled.length > MAX_SAMPLES ? resampled.subarray(0, MAX_SAMPLES) : resampled
+  return window.GenerateFP(slice as unknown as Float32Array)
 }
 
 export interface RecognizeCandidate {

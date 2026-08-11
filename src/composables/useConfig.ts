@@ -139,8 +139,6 @@ export interface AppSettings {
   pinnedOnlinePlaylists: PinnedOnlineItem[]
   /** 在线歌单的自定义排序覆盖：key 为 `${source}:${id}:${kind}`，value 为排序后的歌曲 id 数组。 */
   onlineSorts: Record<string, string[]>
-  /** 全屏播放器风格：classic=经典（当前布局）；am=Apple Music 风格（左封面+右逐字歌词）。 */
-  fullScreenStyle: 'classic' | 'am'
 }
 
 export interface ConfigPlayback {
@@ -251,7 +249,6 @@ export function useConfig(
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
           pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
           onlineSorts: (config.settings.onlineSorts as Record<string, string[]>) ?? {},
-          fullScreenStyle: (config.settings.fullScreenStyle as 'classic' | 'am') === 'am' ? 'am' : 'classic',
         }
       }
       if (config.playback) {
