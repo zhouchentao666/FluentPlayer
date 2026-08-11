@@ -64,9 +64,14 @@ function decodeName(str: string | null | undefined): string {
  */
 export async function getAmlTTML(platform: string, musicId: string): Promise<string | null> {
   if (!musicId) return null
+  // amll-ttml-db 对平台的标识与 SugarPlayer 一致：网易云 "ncm"、QQ "qq"
   const url = `https://amll-ttml-db.stevexmh.net/${platform}/${encodeURIComponent(musicId)}`
   try {
-    const res = await httpFetch(url, { method: "GET", responseType: "text" })
+    const res = await httpFetch(url, {
+      method: "GET",
+      responseType: "text",
+      headers: { Referer: "https://amll-ttml-db.stevexmh.net/" },
+    })
     if (res.status !== 200) return null
     const text = await res.text()
     if (!text || text.startsWith("<?xml") && /<error/i.test(text)) return null
@@ -118,7 +123,7 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
     if (!lyric.trim()) return null
     const tlyric = data.trans ? decodeName(b64DecodeUtf8(data.trans)) : ""
     // amll 逐字 TTML 优先于平台自带歌词（命中时写入 ttml，由播放器优先使用）
-    const ttml = await getAmlTTML("tx", songmid)
+    const ttml = await getAmlTTML("qq", songmid)
     return { lyric, tlyric: tlyric || null, ttml }
   } catch {
     return null
@@ -164,7 +169,7 @@ export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
     const tlyric = (yrc ? (data.ytlrc?.lyric ?? data.tlyric?.lyric) : data.tlyric?.lyric) ?? null
     if (!lrc?.trim() && !yrc?.trim()) return null
     // amll 逐字 TTML 优先于网易云自带逐字（yrc）；命中时写入 ttml 由播放器优先使用。
-    const amllTtml = await getAmlTTML("wy", id)
+    const amllTtml = await getAmlTTML("ncm", id)
     return {
       lyric: lrc ?? "",
       tlyric: tlyric || null,
