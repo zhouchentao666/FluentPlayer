@@ -2,52 +2,44 @@
 //
 // 设计：
 // - isMobile / platform / isAndroid / isIOS 在前端运行时判断，区分桌面与移动端。
-// - 优先用 Tauri 的 app.getPlatform() 精确判断；非 Tauri 环境（纯 Web / 预览）退化为 userAgent 判断。
-// - 全部为惰性异步初始化 + 同步快照，业务代码可直接读 isMobile.value 这种响应式值，
-//   也可调用 isMobileSync() 做同步分支（如 import 流程）。
+// - 不依赖 @tauri-apps/api/os（v2 未内置 os 子模块），改用 navigator.userAgent 判断，
+//   移动端 webview 的 UA 稳定包含 "Android" / "iPhone" / "iPad" / "iPod"。
+// - 全部为同步判断，业务代码可直接读 isMobileSync()，或在需要时调用 initDevice() 做一次性初始化。
 import { ref } from 'vue'
-import type { Platform } from '@tauri-apps/api/os'
 
 const mobile = ref(false)
-const platform = ref<Platform | 'web'>('web')
-let initialized = false
+const platform = ref<'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'web'>('web')
 
-function uaIsMobile(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua)
-}
-
-// 是否在 Tauri 运行时内（含 desktop 与 mobile）
-function inTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-}
-
-/** 异步初始化平台信息，应在 app 启动时调用一次。 */
-export async function initDevice(): Promise<void> {
-  if (initialized) return
-  initialized = true
-  try {
-    if (inTauri()) {
-      const { getPlatform } = await import('@tauri-apps/api/os')
-      const p = await getPlatform()
-      platform.value = p
-      mobile.value = p === 'android' || p === 'ios'
-    } else {
-      platform.value = 'web'
-      mobile.value = uaIsMobile()
-    }
-  } catch {
-    platform.value = 'web'
-    mobile.value = uaIsMobile()
+function detect(): { isMobile: boolean; platform: typeof platform.value } {
+  if (typeof navigator === 'undefined') {
+    return { isMobile: false, platform: 'web' }
   }
+  const ua = navigator.userAgent || ''
+  if (/Android/i.test(ua)) return { isMobile: true, platform: 'android' }
+  if (/iPhone|iPad|iPod/i.test(ua)) return { isMobile: true, platform: 'ios' }
+  if (/Windows/i.test(ua)) return { isMobile: false, platform: 'windows' }
+  if (/Mac OS|Macintosh/i.test(ua)) return { isMobile: false, platform: 'macos' }
+  if (/Linux/i.test(ua)) return { isMobile: false, platform: 'linux' }
+  return { isMobile: false, platform: 'web' }
 }
 
-/** 同步读取移动端状态（初始化完成前用 UA 兜底）。 */
+/** 应用启动时调用一次，完成平台初始化（同步，无外部依赖）。 */
+export function initDevice(): void {
+  const d = detect()
+  mobile.value = d.isMobile
+  platform.value = d.platform
+}
+
+/** 同步读取移动端状态（首次调用前也会基于 UA 即时判断）。 */
 export function isMobileSync(): boolean {
-  if (initialized) return mobile.value
-  // 未初始化时先做一次同步兜底，避免 SSR/首帧误判
-  return uaIsMobile()
+  if (typeof navigator === 'undefined') return false
+  // 若尚未初始化，先做即时判断（避免首帧误判为桌面）
+  if (platform.value === 'web' && !mobile.value) {
+    const d = detect()
+    mobile.value = d.isMobile
+    platform.value = d.platform
+  }
+  return mobile.value
 }
 
 export function isAndroidSync(): boolean {

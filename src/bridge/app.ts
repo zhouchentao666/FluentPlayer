@@ -75,10 +75,14 @@ export function ReadImageFile(path: string): Promise<string> {
 
 // 本地音频播放地址
 // - 桌面端：Tauri asset 协议（流式读取，无需 HTTP 服务器）
-// - 移动端：picker 返回 content://（Android）或 file://（iOS）直链，webview 可直接播放
-//   【仅移动端生效】移动端沙盒无法访问任意磁盘路径，只能播放 picker 授予的 URI。
+// - 移动端：
+//   * picker 返回的 content://（Android）/ file://（iOS）URI 直链，webview 可直接播放；
+//   * app 私有目录下的下载文件仍需走 convertFileSrc（asset 协议，已放开 scope）。
+//   【仅移动端生效】移动端沙盒无法访问任意磁盘路径，只能播放 picker 授予的 URI 或私有文件。
 export function AudioSrc(path: string): string {
-  if (isMobileSync()) return path
+  if (isMobileSync() && (path.startsWith('content://') || path.startsWith('file://'))) {
+    return path
+  }
   return convertFileSrc(path)
 }
 
@@ -167,6 +171,15 @@ export function DownloadFile(
   headers?: Record<string, string>,
 ): Promise<{ size: number; path: string; duration_ms: number }> {
   return invoke('download_file', { url, dest, headers: headers ?? null })
+}
+
+/** 移动端下载（仅移动端生效）：写入应用私有目录，file_name 不含路径。 */
+export function DownloadFileMobile(
+  url: string,
+  file_name: string,
+  headers?: Record<string, string>,
+): Promise<{ size: number; path: string; duration_ms: number }> {
+  return invoke('download_file_mobile', { url, file_name, headers: headers ?? null })
 }
 
 // ---------- 原生拖放（从系统文件管理器拖入音频文件） ----------

@@ -77,3 +77,141 @@ jobs:
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           files: |
             src-tauri/target/release/bundle/**/*.{exe,msi,deb,AppImage,rpm,dmg,tar.gz}
+
+  # ============ Android（仅移动端生效）============
+  # 移动端没有文件系统完整访问权限，使用 Tauri2 移动端 dialog picker 获取 URI；
+  # 原生脚手架由 `tauri android init` 自动生成，init 后补丁 AndroidManifest 增加媒体读取权限。
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-android-
+
+      - name: Setup Android SDK / NDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android platform, build-tools and NDK
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> "$GITHUB_ENV"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      # 生成 Android 原生脚手架（首次会执行 tauri android init）
+      - name: Init Android project
+        run: npm run tauri android init
+
+      # 补丁 AndroidManifest：增加媒体读取权限（移动端 SAF picker 按 URI 授权，
+      # 此权限用于未来“扫描媒体库”能力，且不影响 picker 正常工作）
+      - name: Patch AndroidManifest permissions
+        run: |
+          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            grep -q "READ_MEDIA_AUDIO" "$MANIFEST" || \
+              sed -i 's#</manifest>#  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />\n  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n  <uses-permission android:name="android.permission.INTERNET" />\n</manifest>#' "$MANIFEST"
+            echo "Patched AndroidManifest:"
+            cat "$MANIFEST"
+          else
+            echo "AndroidManifest not found at $MANIFEST"
+            exit 1
+          fi
+
+      - name: Build Android APK / AAB
+        run: npm run tauri android build
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluentplayer-android
+          path: |
+            src-tauri/gen/android/app/build/outputs/**/*.apk
+            src-tauri/gen/android/app/build/outputs/**/*.aab
+          if-no-files-found: warn
+
+      - name: Publish Android release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('nightly-{0}', github.run_number) }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          files: |
+            src-tauri/gen/android/app/build/outputs/**/*.apk
+            src-tauri/gen/android/app/build/outputs/**/*.aab
+
+  # ============ iOS（仅移动端生效，需 macOS runner + Xcode）============
+  ios:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain + iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-ios-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ios-
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      # 生成 iOS 原生脚手架（首次执行 tauri ios init）
+      - name: Init iOS project
+        run: npm run tauri ios init
+
+      - name: Build iOS (device + simulator)
+        run: |
+          npm run tauri ios build --target aarch64-apple-ios --profile release
+          npm run tauri ios build --target aarch64-apple-ios-sim --profile release
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluentplayer-ios
+          path: |
+            src-tauri/target/aarch64-apple-ios/release/bundle/**/*
+            src-tauri/target/aarch64-apple-ios-sim/release/bundle/**/*
+          if-no-files-found: warn

@@ -47,6 +47,15 @@ import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
 import { initDevice, isMobileSync, device } from '@bridge/device'
 
+// 移动端底部导航项（仅移动端生效）。复用桌面端已有的 view 枚举，不引入新分支。
+type AppView = 'main' | 'settings' | 'online' | 'lyrics' | 'sponsor' | 'online-detail' | 'online-sources' | 'online-comments' | 'identify'
+const mobileTabs: { view: AppView; label: string; icon: string }[] = [
+  { view: 'main', label: '本地', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>' },
+  { view: 'online', label: '在线', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' },
+  { view: 'lyrics', label: '歌词', icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h12v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/></svg>' },
+  { view: 'settings', label: '设置', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' },
+]
+
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
 
@@ -715,6 +724,20 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- 移动端底部导航（仅移动端生效）：触摸切换主视图，桌面端保留侧栏不变 -->
+    <nav v-if="device.mobile.value" class="mobile-tabbar">
+      <button
+        v-for="tab in mobileTabs"
+        :key="tab.view"
+        class="mobile-tab"
+        :class="{ active: tab.view !== 'lyrics' && view === tab.view }"
+        @click="tab.view === 'lyrics' ? togglePlayerDetail() : (view = tab.view)"
+      >
+        <span class="mobile-tab-icon" v-html="tab.icon"></span>
+        <span class="mobile-tab-label">{{ tab.label }}</span>
+      </button>
+    </nav>
   </div>
 </template>
 
@@ -768,6 +791,58 @@ onUnmounted(() => {
 .drag-sub {
   font-size: 13px;
   color: var(--fluent-text-secondary);
+}
+
+/* 移动端底部导航（仅移动端生效） */
+.mobile-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 64px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--fluent-bg-glass);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border-top: 1px solid var(--fluent-border);
+  z-index: 80;
+}
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--fluent-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+.mobile-tab.active {
+  color: var(--fluent-accent);
+}
+.mobile-tab-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.mobile-tab-label {
+  line-height: 1;
+}
+
+/* 移动端：增大播放栏高度、为底部导航留出空间（仅移动端生效） */
+@media (pointer: coarse) {
+  .player-footer {
+    height: 88px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .main {
+    padding-bottom: 64px;
+  }
 }
 
 .fade-enter-active,

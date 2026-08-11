@@ -188,4 +188,24 @@ function onCancel() {
   opacity: 0;
   transform: translateY(4px);
 }
+
+/* 触摸设备（移动端）：放大命中区域、常显拖拽块、去掉 hover 依赖（仅移动端生效） */
+@media (pointer: coarse) {
+  .progress-bar {
+    top: -14px;
+    height: 30px;
+  }
+  .progress-track-wrap {
+    height: 6px;
+  }
+  .progress-bar:active .progress-track-wrap {
+    height: 8px;
+  }
+  .progress-thumb {
+    opacity: 1;
+    width: 16px;
+    height: 16px;
+    right: -8px;
+  }
+}
 </style>

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_http::reqwest;
 use tauri_plugin_http::reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -244,4 +244,39 @@ pub async fn download_file(
         error: Some(last_err.clone()),
     });
     Err(last_err)
+}
+
+/// 移动端下载（仅移动端生效）：写入应用私有目录，避免沙盒无桌面绝对路径写入权限。
+///
+/// 移动端没有文件系统完整访问权限，`download_file` 使用的桌面绝对路径在沙盒下不可写。
+/// 本命令把文件保存到 `app_data_dir()/FluentPlayer/downloads/<file_name>`，返回该私有路径。
+/// 该路径可通过 convertFileSrc（已放开 asset 协议 scope）在 <audio> 中播放；如需导出到用户
+/// 可见位置，再由前端调用 save_file（移动端原生保存选择器）完成。
+#[tauri::command]
+pub async fn download_file_mobile(
+    app: AppHandle,
+    url: String,
+    file_name: String,
+    headers: Option<HashMap<String, String>>,
+) -> Result<DownloadResult, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取应用数据目录失败: {e}"))?;
+    let dir = base.join("FluentPlayer").join("downloads");
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return Err(format!("创建下载目录失败: {e}"));
+    }
+    let dest = dir.join(sanitize(&file_name));
+    download_file(app, url, dest.to_string_lossy().to_string(), headers).await
+}
+
+/// 清洗文件名，避免路径穿越与非法字符。
+fn sanitize(name: &str) -> String {
+    let name = name.trim().replace(['/', '\\', '..'], "_");
+    if name.is_empty() {
+        "download.bin".to_string()
+    } else {
+        name
+    }
 }
