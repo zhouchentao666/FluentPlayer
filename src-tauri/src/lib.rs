@@ -14,6 +14,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -54,6 +55,10 @@ pub fn run() {
             commands::tray::set_tray_song_info,
             // 文件夹监听
             commands::watcher::watch_music_folder,
+            // 移动端（仅移动端生效；桌面端前端不会调用）
+            commands::mobile::pick_music_files_mobile,
+            commands::mobile::pick_music_folder_mobile,
+            commands::mobile::read_metadata_mobile,
             // 桌面歌词窗口
             commands::lyric_window::toggle_desktop_lyric,
             commands::lyric_window::close_desktop_lyric,

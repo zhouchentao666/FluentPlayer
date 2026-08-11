@@ -1,6 +1,7 @@
 // Tauri 后端命令桥接层：保持与原 Wails 绑定同名的导出，最小化前端改动
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { AppConfig, SongMetadata } from './models'
+import { isMobileSync } from './device'
 
 // ---------- 文件对话框 ----------
 export function OpenMusicFiles(): Promise<string[]> {
@@ -13,6 +14,34 @@ export function OpenMusicFolder(): Promise<string> {
 
 export function OpenImageFile(): Promise<string> {
   return invoke('open_image_file')
+}
+
+// ============ 移动端专用（仅移动端生效）============
+// 移动端没有文件系统完整访问权限，不能用桌面 open 文件对话框。
+// 改为调用 Tauri2 移动端 dialog picker，返回可被 webview 直接播放的 URI
+// （Android content:// / iOS file://）。桌面端前端不会调用这两个函数。
+export function PickMusicFilesMobile(): Promise<string[]> {
+  return invoke<string[]>('pick_music_files_mobile')
+}
+
+export function PickMusicFolderMobile(): Promise<string[]> {
+  return invoke<string[]>('pick_music_folder_mobile')
+}
+
+// 移动端元数据读取（降级版，见 Rust mobile.rs 注释）：
+// iOS file:// 走 lofty 完整标签；Android content:// 仅返回文件名推断的标题。
+export function ReadMetadataMobile(path: string): Promise<{
+  title: string
+  artist: string
+  album: string
+  genre: string
+  year: string
+  duration: number
+  bitrate: number
+  sample_rate: number
+  from_embedded: boolean
+}> {
+  return invoke('read_metadata_mobile', { path })
 }
 
 export function DefaultMusicFolder(): Promise<string> {
@@ -44,8 +73,12 @@ export function ReadImageFile(path: string): Promise<string> {
   return invoke('read_image_file', { path })
 }
 
-// 本地音频播放地址（Tauri asset 协议，流式读取，无需 HTTP 服务器）
+// 本地音频播放地址
+// - 桌面端：Tauri asset 协议（流式读取，无需 HTTP 服务器）
+// - 移动端：picker 返回 content://（Android）或 file://（iOS）直链，webview 可直接播放
+//   【仅移动端生效】移动端沙盒无法访问任意磁盘路径，只能播放 picker 授予的 URI。
 export function AudioSrc(path: string): string {
+  if (isMobileSync()) return path
   return convertFileSrc(path)
 }
 

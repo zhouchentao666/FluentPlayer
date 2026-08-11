@@ -25,13 +25,22 @@
         "dragDropEnabled": true,
         "windowEffects": {
           "effects": ["acrylic", "mica"]
+        },
+        "android": {
+          "fullscreen": false,
+          "decorations": false,
+          "immersive": true
+        },
+        "ios": {
+          "fullscreen": false,
+          "decorations": false
         }
       }
     ],
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["**", "content://**", "file://**"]
       },
       "csp": null
     }

@@ -1,5 +1,6 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { ReadCoverArt, AudioSrc } from '@bridge/app'
+import { isMobileSync } from '@bridge/device'
 import { type Song } from '../types'
 import { localMetadata } from './useLocalMetadata'
 import { resolveOnlineUrl, resolveOnlinePic, activeQuality, setPreferredQuality } from '@online/player'
@@ -40,6 +41,12 @@ export function useAudioPlayer(options: AudioPlayerOptions = {}) {
     const override = localMetadata.value[path]?.cover
     if (override) {
       coverUrl.value = override
+      return
+    }
+    if (isMobileSync()) {
+      // 【仅移动端生效】移动端 Android content:// 无法被 Rust 读取内嵌封面，
+      // 直接使用占位图（降级方案：移动端本地歌曲封面降级为默认图）。
+      coverUrl.value = null
       return
     }
     try {

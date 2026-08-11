@@ -45,6 +45,7 @@ import type { SortMode, SortOrder } from './composables/usePlaylistView'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
+import { initDevice, isMobileSync, device } from '@bridge/device'
 
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
@@ -471,6 +472,7 @@ watch(audio.currentSong, () => {
 })
 
 onMounted(async () => {
+  await initDevice()
   await load()
   localMetadata.value = settings.value.localMetadata
   if (settings.value.selectedPlaylistId && playlists.value.some(p => p.id === settings.value.selectedPlaylistId)) {
@@ -531,7 +533,7 @@ onUnmounted(() => {
       class="window-bg-layer"
       :style="layerStyle"
     ></div>
-    <TitleBar @close="handleClose" />
+    <TitleBar v-if="!device.mobile.value" @close="handleClose" />
     <div class="content">
       <Sidebar
         :playlists="playlists"
@@ -702,7 +704,7 @@ onUnmounted(() => {
     <audio ref="audioRef" style="display: none;"></audio>
 
     <Transition name="fade">
-      <div v-if="dragActive" class="drag-overlay">
+      <div v-if="dragActive && !device.mobile.value" class="drag-overlay">
         <div class="drag-card">
           <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 16V4M7 9l5-5 5 5" />
