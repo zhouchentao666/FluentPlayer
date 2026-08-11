@@ -52,9 +52,8 @@ const KW_KEY = new TextEncoder().encode("yeelion") // 7 bytes
 
 // XOR `params` with the rolling "yeelion" key, base64-encode (buildParams).
 function kwBuildParams(id: string): string {
-  // 必须带 isGetLyricx=1，否则 kuwo 只返回纯 LRC，没有逐字歌词
-  // （这正是之前酷我永远不显示逐字的根因：不带该参数端点不返回 lyricx）。
-  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}&isGetLyricx=1`
+  // 纯 LRC 模式（不带 isGetLyricx），避免返回带字时间的 lyricx。
+  const params = `user=12345,web,web,web&requester=localhost&req=1&rid=MUSIC_${id}`
   const src = new TextEncoder().encode(params)
   const out = new Uint8Array(src.length)
   let i = 0
@@ -225,13 +224,19 @@ function kwTagToMs(tag: string): number | null {
   return parseInt(m[1]) * 60000 + parseInt(m[2]) * 1000 + frac
 }
 
+/** 毫秒 -> `mm:ss.SSS`。 */
+function kwMsToTag(ms: number): string {
+  const mm = String(Math.floor(ms / 60000)).padStart(2, "0")
+  const ss = String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")
+  return `${mm}:${ss}.${String(ms % 1000).padStart(3, "0")}`
+}
+
 /**
- * 把酷我的 `[mm:ss.SSS]<相对偏移,时长>字` 转成 AMLL ESLRC 的
- * `[行起始,行时长](绝对偏移,时长,0)字`，与酷狗逐字歌词格式一致，
- * 交给 parseLyric -> parseYrc 渲染。无字级时间时返回 null。
+ * 把酷我的 `[mm:ss.SSS]<相对偏移,时长>字` 转成 AMLL A2 的
+ * `[mm:ss.SSS]<mm:ss.SSS>字`（绝对时间）。无字级时间时返回 null。
  */
 function kwToA2(text: string): string | null {
-  const lines: { base: number; body: string }[] = []
+  const out: string[] = []
   let hasWordTime = false
   for (const raw of text.split("\n")) {
     const line = raw.trim()
@@ -239,29 +244,18 @@ function kwToA2(text: string): string | null {
     if (!m) continue
     const base = kwTagToMs(m[1])
     const body = line.replace(KW_TIME_EXP, "")
-    if (base == null) continue
-    if (!/<-?\d+,-?\d+(?:,-?\d+)?>/.test(body)) {
-      lines.push({ base, body })
+    if (base == null || !/<-?\d+,-?\d+(?:,-?\d+)?>/.test(body)) {
+      out.push(line)
       continue
     }
     hasWordTime = true
-    lines.push({ base, body })
-  }
-  if (!hasWordTime) return null
-  const out: string[] = []
-  for (let i = 0; i < lines.length; i++) {
-    const { base, body } = lines[i]
-    const lineDur = (i + 1 < lines.length ? lines[i + 1].base : base + 4000) - base
     const converted = body.replace(
       /<(-?\d+),(-?\d+)(?:,-?\d+)?>/g,
-      (_all, off: string, dur: string) => {
-        const abs = Math.max(0, base + parseInt(off))
-        const d = parseInt(dur)
-        return `(${abs},${d},0)`
-      }
+      (_all, off: string) => `<${kwMsToTag(Math.max(0, base + parseInt(off)))}>`
     )
-    out.push(`[${base},${lineDur}]${converted}`)
+    out.push(`[${m[1]}]${converted}`)
   }
+  if (!hasWordTime) return null
   return out.join("\n")
 }
 

@@ -1,7 +1,5 @@
 import { httpFetch } from "@online/lib/http"
 import { eapi } from "@online/lib/platforms/wy/eapi"
-import { decodeQrc, extractQrcContent } from "@online/lib/qrc"
-import { parseAbsoluteWordTimedLyric } from "../../../utils/lyricConverter"
 import * as pako from "pako"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
@@ -53,6 +51,33 @@ function decodeName(str: string | null | undefined): string {
   )
 }
 
+// --- amll-ttml-db 逐字 TTML（网易云 wy / QQ tx） ------------------------
+//
+// 社区歌词库 amll-ttml-db（https://amll-ttml-db.stevexmh.net）按平台 + 歌曲 id
+// 提供高质量逐字 TTML。命中则优先于平台自带的 LRC / 逐字歌词使用。
+
+/**
+ * 从 amll-ttml-db 拉取逐字 TTML。
+ * @param platform amll 约定的平台标识：网易云 "wy"、QQ "tx"
+ * @param musicId  平台歌曲 id（网易云为数字 id；QQ 为 songmid）
+ * @returns 标准 TTML 文本，或 null（未命中 / 网络失败）
+ */
+export async function getAmlTTML(platform: string, musicId: string): Promise<string | null> {
+  if (!musicId) return null
+  const url = `https://amll-ttml-db.stevexmh.net/${platform}/${encodeURIComponent(musicId)}`
+  try {
+    const res = await httpFetch(url, { method: "GET", responseType: "text" })
+    if (res.status !== 200) return null
+    const text = await res.text()
+    if (!text || text.startsWith("<?xml") && /<error/i.test(text)) return null
+    // amll 命中返回标准 TTML（<tt xmlns=...>）；未命中通常返回 xml 错误或无内容
+    if (/<tt\s+xmlns=/i.test(text) || /<tt\s+>/i.test(text)) return text
+    return null
+  } catch {
+    return null
+  }
+}
+
 // --- tx (QQ音乐) ---------------------------------------------------------
 
 interface TxLyricResponse {
@@ -61,147 +86,12 @@ interface TxLyricResponse {
   trans?: string
 }
 
-// QQ 音乐歌词。优先用 GetPlayLyricInfo 逐字接口（crypt=1 + qrc=1），
-// 解密后得到 QRC 逐字歌词；QRC 原文是 `[行,时长]<相对偏移,时长>字...`（A2 风格）
-// 嵌套格式，不能直接交给 AMLL 解析，故用 parseAbsoluteWordTimedLyric 重新编排成
-// 带【绝对时间】的 A2 行 `[mm:ss.SSS]<相对偏移,时长>字...`，再交给 parseLrcA2。
-// 失败时退回到 fcg_query_lyric_new.fcg 的 base64 纯 LRC。
+// QQ 音乐歌词。直接用 fcg_query_lyric_new.fcg 的 base64 纯 LRC 接口。
 // song.meta.songId 为 songmid（形如 "0039MnYb0qxYhV"）。
-// 移植自 Museek-main/src/lib/lyric/extra.ts 的 getTxNativeLyric。
-
-interface TxPlayLyricResponse {
-  code?: number
-  data?: {
-    req?: {
-      data?: {
-        lyric?: string
-        trans?: string
-        roma?: string
-      }
-    }
-  }
-}
-
-async function getTxNumericSongId(songmid: string): Promise<string | null> {
-  try {
-    const res = await httpFetch(
-      "https://u.y.qq.com/cgi-bin/musicu.fcg?" +
-        "data=" +
-        encodeURIComponent(
-          JSON.stringify({
-            req: {
-              module: "music.pf_song_detail_svr",
-              method: "get_song_detail_yqc",
-              param: { song_mid: [songmid] },
-            },
-          })
-        ),
-      {
-        method: "GET",
-        headers: {
-          Referer: "https://y.qq.com/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
-        },
-      }
-    )
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      req?: { data?: { body?: { track_info?: { id?: number }[] } } }
-    }
-    const id = data.req?.data?.body?.track_info?.[0]?.id
-    return id ? String(id) : null
-  } catch {
-    return null
-  }
-}
-
-async function getTxNativeLyric(songmid: string): Promise<{
-  lyric: string | null
-  lxlyric: string | null
-  tlyric: string | null
-  romalrc: string | null
-} | null> {
-  const songId = await getTxNumericSongId(songmid)
-  if (!songId) return null
-  const payload = {
-    lg: 0,
-    cv: 0,
-    tv: 0,
-    rv: 0,
-    kv: 0,
-    av: 0,
-    nr: 1,
-    cr: 1,
-    yc: 1,
-    qrc: 1,
-    ar: 1,
-    al: 1,
-    jp: 1,
-    hr: 1,
-    optimize: 1,
-    csrf: "",
-    songId,
-    login: "",
-  }
-  const res = await httpFetch(
-    "https://u.y.qq.com/cgi-bin/musicu.fcg?" +
-      "data=" +
-      encodeURIComponent(
-        JSON.stringify({
-          req: {
-            module: "QQMusic.GetPlayLyricInfo",
-            method: "GetPlayLyricInfo",
-            param: payload,
-          },
-        })
-      ),
-    {
-      method: "GET",
-      headers: {
-        Referer: "https://y.qq.com/",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
-      },
-    }
-  )
-  if (!res.ok) return null
-  const data = (await res.json()) as TxPlayLyricResponse
-  const lyric = data.data?.req?.data?.lyric
-  if (!lyric) return null
-  // 解密 QRC 后重新编排成绝对时间 A2 行（[mm:ss.SSS]<相对偏移,时长>字...），
-  // 再交给 parseLrcA2 渲染。这才是 Museek 验证可用的逐字格式。
-  const decoded = decodeQrc(lyric)
-  const repacked = parseAbsoluteWordTimedLyric(decoded)
-  const lxlyric = repacked.lxlyric?.trim() ? repacked.lxlyric : null
-  const tlyric = repacked.lyric?.trim() ? repacked.lyric : null
-  return { lyric: repacked.lyric ?? null, lxlyric, tlyric, romalrc: null }
-}
-
 export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const songmid = song.meta.songId
     if (!songmid) return null
-
-    // 主路径：逐字 QRC 接口。native.lyric 为纯文本 A2 行、native.lxlyric 为
-    // 带逐字时间标记的行，二者配套交给渲染链。
-    const native = await getTxNativeLyric(songmid)
-    if (native) {
-      const lxlyric = native.lxlyric?.trim() ? native.lxlyric : null
-      const tlyric = native.tlyric?.trim() ? native.tlyric : null
-      if (lxlyric) {
-        return {
-          lyric: tlyric || native.lyric || lxlyric,
-          tlyric: tlyric || null,
-          lxlyric,
-        }
-      }
-      if (tlyric) {
-        return { lyric: tlyric, tlyric }
-      }
-    }
-
-    // 回退：base64 纯 LRC 接口。
     const url =
       `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(songmid)}` +
       `&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8` +
@@ -216,6 +106,8 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
     })
     if (!res.ok) return null
 
+    // The endpoint sometimes wraps JSON in a `MusicJsonCallback(...)` JSONP
+    // shell depending on params; strip it defensively before parsing.
     let text = await res.text()
     const jsonpMatch = /^[^{]*?(\{[\s\S]*\})[^}]*$/.exec(text)
     if (jsonpMatch) text = jsonpMatch[1]
@@ -225,7 +117,9 @@ export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
     const lyric = decodeName(b64DecodeUtf8(data.lyric))
     if (!lyric.trim()) return null
     const tlyric = data.trans ? decodeName(b64DecodeUtf8(data.trans)) : ""
-    return { lyric, tlyric: tlyric || null }
+    // amll 逐字 TTML 优先于平台自带歌词（命中时写入 ttml，由播放器优先使用）
+    const ttml = await getAmlTTML("tx", songmid)
+    return { lyric, tlyric: tlyric || null, ttml }
   } catch {
     return null
   }
@@ -241,50 +135,19 @@ interface WyLyricResponse {
 }
 
 /**
- * 网易云歌词。逐字歌词（yrc）只有走【eapi 签名接口】才能稳定返回——公开
- * GET 接口（`/api/song/lyric/v1`）通常不会返回 yrc 字段，这正是之前逐字
- * 失效的根因。Museek 也是用 eapi 签名才拿到 yrc。yrc 格式为
+ * 网易云歌词。用 `/api/song/lyric/v1` 并带上 `yv/ytv/yrv` 参数，
+ * 除普通 LRC 外还会返回 `yrc` 逐字歌词（部分歌曲才有），格式为
  * `[行起始,行时长](起始,时长,0)字...`，可直接交给 AMLL 的 parseYrc。
- * 无 yrc 时退回纯 LRC。
+ * 该接口是 GET、无需 weapi 签名。没有 yrc 时自动退回纯 LRC。
  */
 export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const id = song.meta.songId
     if (!id) return null
 
-    let data: WyLyricResponse | null = null
-    try {
-      data = (await eapi("https://music.163.com/eapi/song/lyric/v1", {
-        id: String(id),
-        cp: false,
-        lv: 0,
-        kv: 0,
-        tv: 0,
-        rv: 0,
-        yv: 1,
-        ytv: 1,
-        yrv: 1,
-      })) as WyLyricResponse
-    } catch {
-      data = null
-    }
-
-    if (data) {
-      const lrc = data.lrc?.lyric ?? data.data?.lrc?.lyric ?? null
-      const yrc = data.yrc?.lyric ?? null
-      const tlyric =
-        (yrc ? data.ytlrc?.lyric : null) ?? data.tlyric?.lyric ?? null
-      if (!lrc?.trim() && !yrc?.trim()) return null
-      return {
-        lyric: lrc ?? "",
-        tlyric: tlyric || null,
-        lxlyric: yrc?.trim() ? yrc : null,
-      }
-    }
-
-    // eapi 失败兜底：公开接口拿纯 LRC。
     const res = await httpFetch(
-      `https://music.163.com/api/song/lyric/v1?id=${encodeURIComponent(id)}&cp=false&lv=1&kv=1&tv=0&rv=0`,
+      `https://music.163.com/api/song/lyric/v1?id=${encodeURIComponent(id)}` +
+        `&cp=false&lv=0&kv=0&tv=0&rv=0&yv=0&ytv=0&yrv=0`,
       {
         method: "GET",
         headers: {
@@ -294,13 +157,19 @@ export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
       }
     )
     if (!res.ok) return null
-    const fb = (await res.json()) as WyLyricResponse
-    const lrc = fb.lrc?.lyric ?? fb.data?.lrc?.lyric ?? null
-    if (!lrc?.trim()) return null
+    const data = (await res.json()) as WyLyricResponse
+    const lrc = data.lrc?.lyric ?? null
+    const yrc = data.yrc?.lyric ?? null
+    // 有逐字时优先用逐字对应的翻译（ytlrc），否则用普通翻译。
+    const tlyric = (yrc ? (data.ytlrc?.lyric ?? data.tlyric?.lyric) : data.tlyric?.lyric) ?? null
+    if (!lrc?.trim() && !yrc?.trim()) return null
+    // amll 逐字 TTML 优先于网易云自带逐字（yrc）；命中时写入 ttml 由播放器优先使用。
+    const amllTtml = await getAmlTTML("wy", id)
     return {
-      lyric: lrc,
-      tlyric: fb.tlyric?.lyric ?? null,
-      lxlyric: null,
+      lyric: lrc ?? "",
+      tlyric: tlyric || null,
+      lxlyric: yrc?.trim() ? yrc : null,
+      ttml: amllTtml,
     }
   } catch {
     return null
@@ -638,21 +507,20 @@ function mgDecryptMrc(data: string): string {
 /**
  * 解密后的咪咕 MRC 逐字文本 -> 普通 LRC + 逐字歌词。
  * MRC 行形如 `[行起始,行时长]字(起始,时长)字(起始,时长)`，字标记在字【之后】，
- * 时间已是绝对毫秒。AMLL 的 parseYrc 期望 `(起始,时长,0)字`（字在括号【之后】），
- * 故这里把 `(起始,时长)` 重排到字【之前】并补上第三个占位参数，输出 YRC 风格
- * `[行起始,行时长](绝对,时长,0)字`，交给 parseYrc / isYrcFormat 渲染。
+ * 时间已是绝对毫秒。补上第三个占位参数即成 QRC 风格，可交给 AMLL 的 parseQrc。
  */
 function mgParseLyric(str: string): { lyric: string; lxlyric: string | null } {
   str = str.replace(/\r/g, "")
   const lineTime = /^\s*\[(\d+),\d+\]/
-  const lxLines: string[] = []
+  const wordTime = /\(\d+,\d+\)/
+  const wordTimeAll = /(\(\d+,\d+\))/g
   const lrcLines: string[] = []
+  const lxLines: string[] = []
   for (const line of str.split("\n")) {
     if (line.length < 6) continue
     const result = lineTime.exec(line)
     if (!result) continue
 
-    const lineHead = result[1] // 原始 [行起始,行时长]
     let time = parseInt(result[1])
     const ms = time % 1000
     time = Math.floor(time / 1000)
@@ -661,16 +529,13 @@ function mgParseLyric(str: string): { lyric: string; lxlyric: string | null } {
     const tag = `[${m}:${s}.${ms}]`
 
     const words = line.replace(lineTime, "")
-    lrcLines.push(`${tag}${words.replace(/\(\d+,\d+\)/g, "")}`)
-
-    // 把 `字(起始,时长)` 重排成 `(起始,时长,0)字`，让字位于括号之后（parseYrc 要求）。
-    if (/\((\d+),(\d+)\)/.test(words)) {
-      const reordered = words.replace(
-        /(.+?)\((\d+),(\d+)\)/g,
-        (_all, word: string, start: string, dur: string) =>
-          `(${start},${dur},0)${word}`
+    lrcLines.push(`${tag}${words.replace(wordTimeAll, "")}`)
+    // `(起始,时长)` -> `(起始,时长,0)`，行头沿用原始 `[起始,时长]`。
+    if (wordTime.test(words)) {
+      lxLines.push(
+        `${(/^\s*(\[\d+,\d+\])/.exec(line) ?? [])[1] ?? tag}` +
+          words.replace(/\((\d+),(\d+)\)/g, "($1,$2,0)")
       )
-      lxLines.push(`${lineHead}${reordered}`)
     }
   }
   return {
