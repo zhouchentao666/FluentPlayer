@@ -1,0 +1,7 @@
+{
+  "app": {
+    "android": {
+      "theme": "@style/Theme.Tauri.Transparent"
+    }
+  }
+}

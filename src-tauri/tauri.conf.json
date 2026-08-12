@@ -11,12 +11,6 @@
   },
   "app": {
     "macOSPrivateApi": true,
-    "ios": {
-      "fullscreen": false,
-      "decorations": false,
-      "transparent": false,
-      "backgroundColor": "#000000"
-    },
     "windows": [
       {
         "label": "main",
@@ -29,15 +23,11 @@
         "transparent": true,
         "center": true,
         "dragDropEnabled": true,
+        "fullscreen": false,
+        "immersive": true,
+        "backgroundColor": "#00000000",
         "windowEffects": {
           "effects": ["acrylic", "mica"]
-        },
-        "android": {
-          "fullscreen": false,
-          "decorations": false,
-          "transparent": false,
-          "immersive": true,
-          "backgroundColor": "#000000"
         }
       }
     ],
@@ -60,6 +50,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "android": {
+      "packageName": "com.zhouchentao.fluentplayer",
+      "minSdkVersion": 24,
+      "versionCode": 1
+    },
+    "iOS": {
+      "minimumSystemVersion": "16.0"
+    }
   }
 }
