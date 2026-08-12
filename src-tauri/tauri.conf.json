@@ -11,6 +11,19 @@
   },
   "app": {
     "macOSPrivateApi": true,
+    "android": {
+      "fullscreen": false,
+      "decorations": false,
+      "transparent": false,
+      "immersive": true,
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "fullscreen": false,
+      "decorations": false,
+      "transparent": false,
+      "backgroundColor": "#000000"
+    },
     "windows": [
       {
         "label": "main",
@@ -25,19 +38,6 @@
         "dragDropEnabled": true,
         "windowEffects": {
           "effects": ["acrylic", "mica"]
-        },
-        "android": {
-          "fullscreen": false,
-          "decorations": false,
-          "transparent": false,
-          "immersive": true,
-          "backgroundColor": "#000000"
-        },
-        "ios": {
-          "fullscreen": false,
-          "decorations": false,
-          "transparent": false,
-          "backgroundColor": "#000000"
         }
       }
     ],
