@@ -55,12 +55,6 @@ function handleLeave() {
     if (!isDragging.value) showSlider.value = false
   }, 300)
 }
-
-// 触摸设备没有 hover，点击音量按钮切换滑块显示（仅移动端生效，桌面端点击也可触发）
-function toggleSlider() {
-  if (hideTimer) clearTimeout(hideTimer)
-  showSlider.value = !showSlider.value
-}
 </script>
 
 <template>
@@ -82,7 +76,7 @@ function toggleSlider() {
         <div class="volume-thumb" :style="{ bottom: `calc(${volume}% - 6px)` }"></div>
       </div>
     </div>
-    <button class="control-btn volume-btn" title="音量" @click="toggleSlider">
+    <button class="control-btn volume-btn" title="音量">
       <svg v-if="volume === 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
       <svg v-else-if="volume < 40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
       <svg v-else-if="volume < 75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>

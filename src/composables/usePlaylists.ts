@@ -6,8 +6,6 @@ import {
   WatchMusicFolder,
   ReadMetadata,
 } from '@bridge/app'
-import { isMobileSync } from '@bridge/device'
-import { pickMobileMusicFiles, pickMobileMusicFolder } from './useMobileFs'
 import { type Playlist, type Song } from '../types'
 
 const AUDIO_EXT = /\.(mp3|flac|wav|ogg|m4a|aac|opus|wma|ape|tta|ac3|dts|mp2|mid|midi)$/i
@@ -88,13 +86,6 @@ export function usePlaylists() {
   async function addMusicFiles(playlistId: string) {
     const playlist = playlists.value.find(p => p.id === playlistId)
     if (!playlist) return
-    if (isMobileSync()) {
-      // 【仅移动端生效】用系统 picker 替代桌面文件对话框
-      const songs = await pickMobileMusicFiles()
-      if (songs.length === 0) return
-      updatePlaylist({ ...playlist, songs: [...playlist.songs, ...songs] })
-      return
-    }
     const paths = await OpenMusicFiles()
     if (!paths || paths.length === 0) return
     const validPaths = paths.filter((p): p is string => p !== null)
@@ -128,13 +119,6 @@ export function usePlaylists() {
   async function addMusicFolder(playlistId: string) {
     const playlist = playlists.value.find(p => p.id === playlistId)
     if (!playlist) return
-    if (isMobileSync()) {
-      // 【仅移动端生效】移动端无递归目录访问，复用多选文件 picker
-      const songs = await pickMobileMusicFolder()
-      if (songs.length === 0) return
-      updatePlaylist({ ...playlist, songs: [...playlist.songs, ...songs] })
-      return
-    }
     const folder = await OpenMusicFolder()
     if (!folder) return
     const paths = await ScanMusicFolder(folder)

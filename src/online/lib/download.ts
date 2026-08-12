@@ -2,8 +2,7 @@ import { resolveOnlineUrl, downloadQuality } from '../player'
 import { cdnHeadersForUrl } from './cdnHeaders'
 import type { MusicInfo } from '../types/music'
 import { toast } from '../../composables/useToast'
-import { SaveFile, DownloadFile, DownloadFileMobile, OpenMusicFolder, LoadConfig, DefaultMusicFolder } from '../../bridge/app'
-import { isMobileSync } from '../../bridge/device'
+import { SaveFile, DownloadFile, OpenMusicFolder, LoadConfig, DefaultMusicFolder } from '../../bridge/app'
 
 /** 去除文件名中的非法字符，并限制长度。 */
 function safeFileName(name: string): string {
@@ -70,21 +69,6 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
 
   const base = `${m.singer ? m.singer + ' - ' : ''}${m.name}`
   const name = safeFileName(base) + '.' + inferExt(url)
-
-  // 移动端（仅移动端生效）：沙盒无桌面绝对路径写入权限，直接写入应用私有目录。
-  if (isMobileSync()) {
-    toast(`开始下载：${m.name}`, 'info')
-    try {
-      const res = await DownloadFileMobile(url, name, cdnHeadersForUrl(url))
-      const mb = (res.size / 1024 / 1024).toFixed(1)
-      toast(`已下载到应用目录：${m.name}（${mb} MB）`, 'success', 5000)
-      return true
-    } catch (e) {
-      toast(`下载失败：${(e as Error)?.message || e}`, 'error', 6000)
-      return false
-    }
-  }
-
   const dir = folder !== undefined ? folder : await resolveFolder()
   let dest: string
   if (dir) {

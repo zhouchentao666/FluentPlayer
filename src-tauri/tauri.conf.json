@@ -23,9 +23,6 @@
         "transparent": true,
         "center": true,
         "dragDropEnabled": true,
-        "fullscreen": false,
-        "immersive": true,
-        "backgroundColor": "#00000000",
         "windowEffects": {
           "effects": ["acrylic", "mica"]
         }
@@ -34,7 +31,7 @@
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["**", "content://**", "file://**"]
+        "scope": ["**"]
       },
       "csp": null
     }
@@ -50,14 +47,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "android": {
-      "packageName": "com.zhouchentao.fluentplayer",
-      "minSdkVersion": 24,
-      "versionCode": 1
-    },
-    "iOS": {
-      "minimumSystemVersion": "16.0"
-    }
+    ]
   }
 }
