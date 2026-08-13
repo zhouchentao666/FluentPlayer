@@ -20,31 +20,18 @@ let afpLoading: Promise<void> | null = null
 
 /**
  * 在浏览器(Tauri)环境加载 afp 指纹库。
- * public/afp.wasm.js 已由构建期填入真实 base64 二进制（格式：const WASM_BINARY = '...'），
- * 这里直接以文本读取并提取 WASM_BINARY 字符串，避免用 new Function 在内存中整段执行
- * 308KB 脚本造成的 OOM（Aborted(OOM)）。再把 WASM_BINARY 暴露到全局，并提供 require
- * shim，使 afp.js 内部的 require('./afp.wasm.js') 能取到。
+ * 参考 Mio-Music-main 的 ensureAFP：直接用浏览器原生 <script> 加载 afp.wasm.js / afp.js 各一次，
+ * 由浏览器缓存脚本，绝不把整段 308KB 的 afp.wasm.js 读成文本再用正则 / new Function 重复编译，
+ * 否则会反复在内存中持有多份 base64 字符串与 wasm 实例，触发 emscripten 的 Aborted(OOM)。
+ * public/afp.wasm.js 顶层已把 const WASM_BINARY 改为 var WASM_BINARY，原生加载后即成为全局变量，
+ * afp.js 内部直接复用全局 WASM_BINARY，无需再注入 require shim。
  */
 export async function ensureAfpLoaded(): Promise<void> {
   if (window.GenerateFP) return
   if (afpLoading) return afpLoading
 
   afpLoading = (async () => {
-    if (!window.WASM_BINARY) {
-      try {
-        const wasmText = await (await fetch('/afp.wasm.js')).text()
-        // 形如： const WASM_BINARY =\n  'BASE64...'
-        const m = wasmText.match(/WASM_BINARY\s*=\s*'((?:[A-Za-z0-9+/=]|\\\n|\s)*)'/)
-        const bin = m ? m[1].replace(/\\\n/g, '').replace(/\s/g, '') : ''
-        if (bin) window.WASM_BINARY = bin
-      } catch {
-        // 忽略，下次重试
-      }
-    }
-    // 提供 require shim（Electron 环境靠 Node require 加载 wasm，浏览器用此 shim 替代）
-    ;(window as unknown as { require: (id: string) => { WASM_BINARY?: string } }).require = () => ({
-      WASM_BINARY: window.WASM_BINARY,
-    })
+    await loadScript('/afp.wasm.js')
     await loadScript('/afp.js')
   })()
 
