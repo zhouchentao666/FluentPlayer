@@ -1,6 +1,8 @@
 import { httpFetch } from "@online/lib/http"
 import { eapi } from "@online/lib/platforms/wy/eapi"
 import * as pako from "pako"
+import { decodeQrc } from "@online/lib/lyric/qrc"
+import { parseQrc, stringifyLrc } from "@applemusic-like-lyrics/lyric"
 import * as md5Lib from "js-md5"
 import type { LyricInfo, MusicInfo } from "@online/types/music"
 
@@ -91,40 +93,177 @@ interface TxLyricResponse {
   trans?: string
 }
 
-// QQ 音乐歌词。直接用 fcg_query_lyric_new.fcg 的 base64 纯 LRC 接口。
+interface TxSongDetailResponse {
+  code?: number
+  req?: { code?: number; data?: { track_info?: { id?: number } } }
+}
+
+interface TxNativeLyricResponse {
+  code?: number
+  req?: { code?: number; data?: { lyric?: string; trans?: string; roma?: string } }
+}
+
+const txSongIdCache = new Map<string, Promise<string | null>>()
+
+function decodeXmlEntities(value: string): string {
+  const entities: Record<string, string> = {
+    "&quot;": '"',
+    "&apos;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&amp;": "&",
+  }
+  return value.replace(/&quot;|&apos;|&lt;|&gt;|&amp;/g, (e) => entities[e])
+}
+
+// 从解密后的 QRC 文本中取出 LyricContent="..." 部分（逐字歌词本体）。
+function extractQrcContent(value: string): string {
+  const m = /LyricContent="([\s\S]*?)"/.exec(value)
+  return m ? decodeXmlEntities(m[1]) : ""
+}
+
+// 解码 QQ 的 QRC 加密歌词负载（hex 密文），解析为 {lyric, lxlyric}。
+// content 是 QRC 原文本（含 [ti:][ar:] 元信息和 <dur,off,len>字 逐字标记），
+// 直接作为 lxlyric 交给播放器的 parseQrc 管道；纯 LRC 由 parseQrc + stringifyLrc 提取。
+function parseQrcPayload(value: string): LyricInfo | null {
+  const content = extractQrcContent(decodeQrc(value))
+  if (!content.trim()) return null
+  const lines = parseQrc(content)
+  if (!lines.length) return null
+  return { lyric: stringifyLrc(lines), lxlyric: content }
+}
+
+// songmid -> 数字 songID（GetPlayLyricInfo 需要数字 ID）。
+async function getTxNumericSongId(songmid: string): Promise<string | null> {
+  if (/^\d+$/.test(songmid)) return songmid
+  const cached = txSongIdCache.get(songmid)
+  if (cached) return cached
+  const request = (async () => {
+    try {
+      const res = await httpFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
+        method: "POST",
+        headers: {
+          Referer: "https://y.qq.com/",
+          "Content-Type": "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+        },
+        body: JSON.stringify({
+          comm: { ct: "19", cv: "1859", uin: "0" },
+          req: {
+            module: "music.pf_song_detail_svr",
+            method: "get_song_detail_yqq",
+            param: { song_type: 0, song_mid: songmid },
+          },
+        }),
+      })
+      if (!res.ok) return null
+      const data = (await res.json()) as TxSongDetailResponse
+      const id = data.req?.data?.track_info?.id
+      return data.code === 0 && data.req?.code === 0 && id != null ? String(id) : null
+    } catch {
+      return null
+    }
+  })()
+  txSongIdCache.set(songmid, request)
+  return request
+}
+
+// QQ 原生逐字歌词。GetPlayLyricInfo 返回 QRC 加密逐字（qrc:1），解密后得到逐字 lxlyric。
+// 参考 Museek-main 的 getTxNativeLyric。
+async function getTxNativeLyric(songmid: string): Promise<LyricInfo | null> {
+  const songId = await getTxNumericSongId(songmid)
+  if (!songId) return null
+  try {
+    const res = await httpFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
+      method: "POST",
+      headers: {
+        Referer: "https://y.qq.com/",
+        "Content-Type": "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+      },
+      body: JSON.stringify({
+        comm: { ct: "19", cv: "1859", uin: "0" },
+        req: {
+          method: "GetPlayLyricInfo",
+          module: "music.musichallSong.PlayLyricInfo",
+          param: {
+            format: "json",
+            crypt: 1,
+            ct: 19,
+            cv: 1873,
+            interval: 0,
+            lrc_t: 0,
+            qrc: 1,
+            qrc_t: 0,
+            roma: 1,
+            roma_t: 0,
+            songID: Number(songId),
+            trans: 1,
+            trans_t: 0,
+            type: -1,
+          },
+        },
+      }),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as TxNativeLyricResponse
+    const payload = data.req?.data
+    if (data.code !== 0 || data.req?.code !== 0 || !payload?.lyric) return null
+    const parsed = parseQrcPayload(payload.lyric)
+    if (!parsed) return null
+    const translation = payload.trans ? parseQrcPayload(payload.trans)?.lyric ?? null : null
+    const romanization = payload.roma ? parseQrcPayload(payload.roma)?.lyric ?? null : null
+    return { lyric: parsed.lyric, lxlyric: parsed.lxlyric, tlyric: translation, rlyric: romanization }
+  } catch {
+    return null
+  }
+}
+
+// QQ 音乐歌词旧接口（base64 纯 LRC，无逐字），作为 native 失败时的回退。
+async function getTxClassicLyric(songmid: string): Promise<LyricInfo | null> {
+  const url =
+    `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(songmid)}` +
+    `&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8` +
+    `&platform=yqq&notice=0&needNewCode=0`
+  const res = await httpFetch(url, {
+    method: "GET",
+    headers: {
+      Referer: "https://y.qq.com/portal/player.html",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+    },
+  })
+  if (!res.ok) return null
+
+  // The endpoint sometimes wraps JSON in a `MusicJsonCallback(...)` JSONP
+  // shell depending on params; strip it defensively before parsing.
+  let text = await res.text()
+  const jsonpMatch = /^[^{]*?(\{[\s\S]*\})[^}]*$/.exec(text)
+  if (jsonpMatch) text = jsonpMatch[1]
+  const data = JSON.parse(text) as TxLyricResponse
+
+  if (data.code !== 0 || !data.lyric) return null
+  const lyric = decodeName(b64DecodeUtf8(data.lyric))
+  if (!lyric.trim()) return null
+  const tlyric = data.trans ? decodeName(b64DecodeUtf8(data.trans)) : ""
+  return { lyric, tlyric: tlyric || null }
+}
+
+// QQ 音乐歌词。优先取 native 逐字（QRC），回退旧接口纯 LRC；
+// amll 逐字 TTML 仍由播放器优先使用（这里写入 ttml 字段）。
 // song.meta.songId 为 songmid（形如 "0039MnYb0qxYhV"）。
 export async function getTxLyric(song: MusicInfo): Promise<LyricInfo | null> {
   try {
     const songmid = song.meta.songId
     if (!songmid) return null
-    const url =
-      `https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(songmid)}` +
-      `&g_tk=5381&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8` +
-      `&platform=yqq&notice=0&needNewCode=0`
-    const res = await httpFetch(url, {
-      method: "GET",
-      headers: {
-        Referer: "https://y.qq.com/portal/player.html",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
-      },
-    })
-    if (!res.ok) return null
-
-    // The endpoint sometimes wraps JSON in a `MusicJsonCallback(...)` JSONP
-    // shell depending on params; strip it defensively before parsing.
-    let text = await res.text()
-    const jsonpMatch = /^[^{]*?(\{[\s\S]*\})[^}]*$/.exec(text)
-    if (jsonpMatch) text = jsonpMatch[1]
-    const data = JSON.parse(text) as TxLyricResponse
-
-    if (data.code !== 0 || !data.lyric) return null
-    const lyric = decodeName(b64DecodeUtf8(data.lyric))
-    if (!lyric.trim()) return null
-    const tlyric = data.trans ? decodeName(b64DecodeUtf8(data.trans)) : ""
+    const native = await getTxNativeLyric(songmid).catch(() => null)
+    const classic = native ?? (await getTxClassicLyric(songmid))
+    if (!classic) return null
     // amll 逐字 TTML 优先于平台自带歌词（命中时写入 ttml，由播放器优先使用）
     const ttml = await getAmlTTML("qq", songmid)
-    return { lyric, tlyric: tlyric || null, ttml }
+    return { ...classic, ttml }
   } catch {
     return null
   }
@@ -152,7 +291,7 @@ export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
 
     const res = await httpFetch(
       `https://music.163.com/api/song/lyric/v1?id=${encodeURIComponent(id)}` +
-        `&cp=false&lv=0&kv=0&tv=0&rv=0&yv=0&ytv=0&yrv=0`,
+        `&cp=false&lv=0&kv=0&tv=0&rv=0&yv=1&ytv=1&yrv=1`,
       {
         method: "GET",
         headers: {
