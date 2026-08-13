@@ -531,6 +531,12 @@ onUnmounted(() => {
       class="window-bg-layer"
       :style="layerStyle"
     ></div>
+    <!-- 启动加载遮罩：配置与媒体库扫描完成前保持深色透明，避免启动白屏 -->
+    <Transition name="boot-fade">
+      <div v-if="isLoading" class="boot-overlay">
+        <div class="boot-spinner"></div>
+      </div>
+    </Transition>
     <TitleBar @close="handleClose" />
     <div class="content">
       <Sidebar
@@ -735,6 +741,43 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: -1;
+}
+/* 启动加载遮罩：与窗口 acrylic 底色一致（深色透明），
+   覆盖在内容之上直到配置/媒体库就绪，彻底消除启动白屏。 */
+.boot-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(20, 20, 22, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.boot-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--fluent-accent, #4f8cff);
+  border-radius: 50%;
+  animation: boot-spin 0.8s linear infinite;
+}
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner {
+    animation: none;
+  }
+}
+.boot-fade-leave-active {
+  transition: opacity 0.28s ease;
+}
+.boot-fade-leave-to {
+  opacity: 0;
 }
 
 .drag-overlay {
