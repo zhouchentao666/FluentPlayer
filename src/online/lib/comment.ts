@@ -30,6 +30,15 @@ export interface CommentItem {
   reply?: CommentReply[]
 }
 
+/** 评论排序方式：热门 / 最新 / 最旧。 */
+export type CommentSort = "hot" | "new" | "old"
+
+export const COMMENT_SORTS: { value: CommentSort; label: string }[] = [
+  { value: "hot", label: "热门" },
+  { value: "new", label: "最新" },
+  { value: "old", label: "最旧" },
+]
+
 export interface CommentPage {
   source: string
   comments: CommentItem[]
@@ -37,6 +46,37 @@ export interface CommentPage {
   page: number
   limit: number
   maxPage: number
+  sort: CommentSort
+  /**
+   * 游标翻页令牌。部分平台（网易云 / 咪咕）不支持按页号随机跳页，
+   * 只能凭上一页返回的游标顺序取下一页。为 null 表示没有下一页。
+   */
+  nextCursor?: string | null
+  /** 该平台是否支持随机跳页（false 时 UI 只提供「上一页 / 下一页」）。 */
+  cursorPaging?: boolean
+}
+
+/** 各平台支持的排序方式，UI 据此决定显示哪些分类按钮。 */
+export function supportedSorts(source: string): CommentSort[] {
+  switch (source) {
+    case "wy":
+      return ["hot", "new", "old"]
+    case "tx":
+    case "kg":
+    case "kw":
+    case "mg":
+      return ["hot", "new"]
+    default:
+      return ["new"]
+  }
+}
+
+export interface CommentQuery {
+  page?: number
+  limit?: number
+  sort?: CommentSort
+  /** 游标翻页平台在翻下一页时回传上一页的 nextCursor。 */
+  cursor?: string | null
 }
 
 // --- helpers --------------------------------------------------------------
@@ -76,58 +116,16 @@ function dateFormat(ts: number | string): string {
 
 // --- NetEase --------------------------------------------------------------
 
-async function getWyComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
-  const songId = song.meta.songId
-  if (!songId) throw new Error("缺少歌曲 ID")
-  const threadId = `R_SO_4_${songId}`
-  // 网易云评论分页：/weapi/comment/resource/comments/get 使用 cursor 翻页。
-  // 参考 lx-music（CeruMusic）：首页 cursor 必须为当前毫秒时间戳 Date.now()，
-  // 传 0 会导致接口返回空/失败；翻页用上一次响应返回的 data.cursor。
-  // 重新打开评论（page<=1）时清空缓存的游标。
-  if (page <= 1) (song as any).__wyCursor = null
-  const prevCursor: number | string | null = (song as any).__wyCursor ?? null
-  const cursor = prevCursor ?? Date.now()
-  const body = weapi(
-    {
-      rid: threadId,
-      threadId,
-      cursor: cursor,
-      offset: 0,
-      orderType: 1,
-      pageNo: page,
-      pageSize: limit,
-    },
-    randomSecret(),
-  )
-  const res = await tauriFetch("https://music.163.com/weapi/comment/resource/comments/get", {
-    method: "POST",
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36",
-      "Content-Type": "application/x-www-form-urlencoded",
-      origin: "https://music.163.com",
-      referer: "https://music.163.com/",
-    },
-    body: formBody(body),
-  })
-  if (!res.ok) throw new Error("获取评论失败")
-  const data = (await res.json()) as {
-    code?: number
-    data?: { comments?: any[]; totalCount?: number; cursor?: number[] | number | string; hasMore?: boolean }
-  }
-  if (data.code !== 200 || !data.data) throw new Error("获取评论失败")
-  const raw = data.data.comments ?? []
-  const total = data.data.totalCount ?? 0
-  // 记录下一页游标（响应 cursor 为 [上一页, 下一页] 数组，取下一项）。
-  const respCursor = data.data.cursor
-  if (Array.isArray(respCursor)) {
-    ;(song as any).__wyCursor = respCursor[1] ?? cursor
-  } else if (respCursor != null) {
-    ;(song as any).__wyCursor = respCursor
-  } else {
-    ;(song as any).__wyCursor = cursor
-  }
-  const comments: CommentItem[] = raw.map((item) => ({
+const WY_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36",
+  "Content-Type": "application/x-www-form-urlencoded",
+  origin: "https://music.163.com",
+  referer: "https://music.163.com/",
+}
+
+function mapWyComment(item: any): CommentItem {
+  return {
     id: String(item.commentId),
     text: item.content ? applyWyEmoji(item.content) : "",
     userName: item.user?.nickname ?? "",
@@ -135,9 +133,129 @@ async function getWyComments(song: MusicInfo, page: number, limit: number): Prom
     timeStr: item.time ? dateFormat(item.time) : "",
     likedCount: item.likedCount ?? 0,
     location: item.ipLocation?.location ?? null,
-    reply: [],
-  }))
-  return { source: "wy", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+    reply: (item.beReplied ?? []).map((r: any) => ({
+      id: String(r.beRepliedCommentId ?? `${item.commentId}_re`),
+      text: r.content ? applyWyEmoji(r.content) : "",
+      userName: r.user?.nickname ?? "",
+      avatar: r.user?.avatarUrl ?? null,
+      timeStr: r.time ? dateFormat(r.time) : "",
+      likedCount: r.likedCount ?? null,
+    })),
+  }
+}
+
+/**
+ * 网易云热门评论：走独立的 hotcomments 接口，用 offset 分页。
+ * comments/get 接口的 sortType 对本资源并不生效（实测排序不变），
+ * 因此热门必须单独取，否则「热门」和「最新」会返回一模一样的内容。
+ */
+async function getWyHotComments(threadId: string, page: number, limit: number): Promise<CommentPage> {
+  const body = weapi(
+    { rid: threadId, limit, offset: (page - 1) * limit, beforeTime: "0" },
+    randomSecret(),
+  )
+  const res = await tauriFetch(`https://music.163.com/weapi/v1/resource/hotcomments/${threadId}`, {
+    method: "POST",
+    headers: WY_HEADERS,
+    body: formBody(body),
+  })
+  if (!res.ok) throw new Error("获取热门评论失败")
+  const data = (await res.json()) as {
+    code?: number
+    hotComments?: any[]
+    total?: number
+    hasMore?: boolean
+  }
+  if (data.code !== 200) throw new Error("获取热门评论失败")
+  const total = data.total ?? 0
+  return {
+    source: "wy",
+    comments: (data.hotComments ?? []).map(mapWyComment),
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort: "hot",
+    cursorPaging: false,
+    nextCursor: null,
+  }
+}
+
+/**
+ * 网易云最新 / 最旧评论。
+ *
+ * 关键点（实测）：该接口完全靠 cursor + orderType 决定顺序，sortType 无效。
+ *   - 最新：orderType=1，首页 cursor 必须为当前毫秒时间戳；传 "0" 会返回空列表。
+ *   - 最旧：orderType=0，首页 cursor 传 "1"（即从最早时间往后取）。
+ * 翻页时使用上一次响应里的 data.cursor（是字符串，不是 [prev,next] 数组，
+ * 旧实现按数组取 [1] 永远拿到 undefined，导致第二页开始重复/为空）。
+ */
+async function getWyTimeComments(
+  threadId: string,
+  page: number,
+  limit: number,
+  sort: "new" | "old",
+  cursor: string | null,
+): Promise<CommentPage> {
+  const orderType = sort === "new" ? 1 : 0
+  const startCursor = sort === "new" ? String(Date.now()) : "1"
+  const useCursor = page > 1 && cursor ? cursor : startCursor
+  const body = weapi(
+    {
+      rid: threadId,
+      threadId,
+      cursor: useCursor,
+      offset: 0,
+      orderType,
+      pageNo: page,
+      pageSize: limit,
+    },
+    randomSecret(),
+  )
+  const res = await tauriFetch("https://music.163.com/weapi/comment/resource/comments/get", {
+    method: "POST",
+    headers: WY_HEADERS,
+    body: formBody(body),
+  })
+  if (!res.ok) throw new Error("获取评论失败")
+  const data = (await res.json()) as {
+    code?: number
+    data?: { comments?: any[]; totalCount?: number; cursor?: unknown; hasMore?: boolean }
+  }
+  if (data.code !== 200 || !data.data) throw new Error("获取评论失败")
+  const raw = data.data.comments ?? []
+  const total = data.data.totalCount ?? 0
+  // 响应 cursor 为字符串；个别情况下可能是数组，做一次兼容。
+  const respCursor = data.data.cursor
+  let nextCursor: string | null = null
+  if (Array.isArray(respCursor)) nextCursor = respCursor[respCursor.length - 1] != null ? String(respCursor[respCursor.length - 1]) : null
+  else if (respCursor != null && respCursor !== "") nextCursor = String(respCursor)
+  if (data.data.hasMore === false || raw.length === 0) nextCursor = null
+  return {
+    source: "wy",
+    comments: raw.map(mapWyComment),
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort,
+    cursorPaging: true,
+    nextCursor,
+  }
+}
+
+async function getWyComments(
+  song: MusicInfo,
+  page: number,
+  limit: number,
+  sort: CommentSort,
+  cursor: string | null,
+): Promise<CommentPage> {
+  const songId = song.meta.songId
+  if (!songId) throw new Error("缺少歌曲 ID")
+  const threadId = `R_SO_4_${songId}`
+  if (sort === "hot") return getWyHotComments(threadId, page, limit)
+  return getWyTimeComments(threadId, page, limit, sort, cursor)
 }
 
 // --- QQ --------------------------------------------------------------------
@@ -209,6 +327,77 @@ async function getTxSongId(song: MusicInfo): Promise<string> {
   return String(id)
 }
 
+/** QQ 热门评论：musicu.fcg 的 GetHotCommentList 模块。 */
+async function getTxHotComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+  const songId = await getTxSongId(song)
+  const body = {
+    comm: {
+      cv: 4747474,
+      ct: 24,
+      format: "json",
+      inCharset: "utf-8",
+      outCharset: "utf-8",
+      notice: 0,
+      platform: "yqq.json",
+      needNewCode: 1,
+      uin: 0,
+    },
+    req: {
+      module: "music.globalComment.CommentRead",
+      method: "GetHotCommentList",
+      param: {
+        BizType: 1,
+        BizId: String(songId),
+        LastCommentSeqNo: "",
+        PageSize: limit,
+        PageNum: page - 1,
+        HotType: 1,
+        WithAirborne: 0,
+        PicEnable: 1,
+      },
+    },
+  }
+  const res = await tauriFetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
+    method: "POST",
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+      "Content-Type": "application/json",
+      referer: "https://y.qq.com/",
+      origin: "https://y.qq.com",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error("获取热门评论失败")
+  const data = (await res.json()) as any
+  if (data?.code !== 0 || data?.req?.code !== 0) throw new Error("获取热门评论失败")
+  const list = data.req.data?.CommentList
+  const total = list?.Total ?? 0
+  const comments: CommentItem[] = (list?.Comments ?? []).map((item: any) => {
+    const time = txFormatTime(item.PubTime)
+    return {
+      id: String(item.CommentId ?? item.SeqNo),
+      text: item.Content ? replaceTxEmoji(item.Content).replace(/\\n/g, "\n") : "",
+      userName: item.Nick ?? "",
+      avatar: item.Avatar ?? null,
+      timeStr: time ? dateFormat(time) : "",
+      likedCount: item.PraiseNum ?? 0,
+      location: item.LocationInfo?.Name ?? null,
+      reply: [],
+    }
+  })
+  return {
+    source: "tx",
+    comments,
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort: "hot",
+    cursorPaging: false,
+  }
+}
+
 async function getTxComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
   const songId = await getTxSongId(song)
   const res = await tauriFetch("https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg", {
@@ -259,7 +448,16 @@ async function getTxComments(song: MusicInfo, page: number, limit: number): Prom
       reply,
     }
   })
-  return { source: "tx", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+  return {
+    source: "tx",
+    comments,
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort: "new",
+    cursorPaging: false,
+  }
 }
 
 // --- Kugou (kg) -----------------------------------------------------------
@@ -279,12 +477,19 @@ function kgFormatTime(ts: number | string): number | null {
   return t < 1e12 ? t * 1000 : t
 }
 
-async function getKgComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+async function getKgComments(
+  song: MusicInfo,
+  page: number,
+  limit: number,
+  sort: CommentSort,
+): Promise<CommentPage> {
   const hash = song.meta.hash
   if (!hash) throw new Error("缺少歌曲 hash")
   const timestamp = Math.floor(Date.now() / 1000)
   const params = `dfid=0&mid=16249512204336365674023395779019&clienttime=${timestamp}&uuid=0&extdata=${hash}&appid=1005&code=fc4be23b4e972707f36b8a828a93ba8a&schash=${hash}&clientver=11409&p=${page}&clienttoken=&pagesize=${limit}&ver=10&kugouid=0`
-  const url = `http://m.comment.service.kugou.com/r/v1/rank/newest?${params}&signature=${kgSignature(params)}`
+  // 酷狗用两个不同的排行接口区分热门与最新。
+  const path = sort === "hot" ? "rank/topliked" : "rank/newest"
+  const url = `http://m.comment.service.kugou.com/r/v1/${path}?${params}&signature=${kgSignature(params)}`
   const res = await tauriFetch(url, {
     headers: {
       "User-Agent":
@@ -305,7 +510,16 @@ async function getKgComments(song: MusicInfo, page: number, limit: number): Prom
     location: item.location || null,
     reply: [],
   }))
-  return { source: "kg", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+  return {
+    source: "kg",
+    comments,
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort,
+    cursorPaging: false,
+  }
 }
 
 function replaceAt(raw: string, atList: { id: string; name: string }[]): string {
@@ -316,10 +530,17 @@ function replaceAt(raw: string, atList: { id: string; name: string }[]): string 
 
 // --- Kuwo (kw) ------------------------------------------------------------
 
-async function getKwComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+async function getKwComments(
+  song: MusicInfo,
+  page: number,
+  limit: number,
+  sort: CommentSort,
+): Promise<CommentPage> {
   const songmid = song.meta.songId
   if (!songmid) throw new Error("缺少歌曲 ID")
-  const url = `https://ncomment.kuwo.cn/com.s?f=web&type=get_comment&aapiver=1&prod=kwplayer_ar_10.5.2.0&digest=15&sid=${songmid}&start=${limit * (page - 1)}&msgflag=1&count=${limit}&newver=3&uid=0`
+  // 酷我热门评论用 get_rec_comment（推荐/精彩评论），最新用 get_comment。
+  const type = sort === "hot" ? "get_rec_comment" : "get_comment"
+  const url = `https://ncomment.kuwo.cn/com.s?f=web&type=${type}&aapiver=1&prod=kwplayer_ar_10.5.2.0&digest=15&sid=${songmid}&start=${limit * (page - 1)}&msgflag=1&count=${limit}&newver=3&uid=0`
   const res = await tauriFetch(url, {
     headers: { "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 9;)" },
   })
@@ -344,15 +565,35 @@ async function getKwComments(song: MusicInfo, page: number, limit: number): Prom
       likedCount: c.like_num ?? 0,
     })),
   }))
-  return { source: "kw", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+  return {
+    source: "kw",
+    comments,
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort,
+    cursorPaging: false,
+  }
 }
 
 // --- Migu (mg) ------------------------------------------------------------
 
-async function getMgComments(song: MusicInfo, page: number, limit: number): Promise<CommentPage> {
+async function getMgComments(
+  song: MusicInfo,
+  page: number,
+  limit: number,
+  sort: CommentSort,
+  cursor: string | null,
+): Promise<CommentPage> {
   const songId = song.meta.songId
   if (!songId) throw new Error("缺少歌曲 ID")
-  const url = `https://app.c.nf.migu.cn/MIGUM3.0/user/comment/stack/v1.0?pageSize=${limit}&queryType=1&resourceId=${songId}&resourceType=2&commentId=`
+  const isHot = sort === "hot"
+  // 咪咕：热门用 queryType=2 + hotCommentStart 偏移；
+  // 最新用 queryType=1，只能靠上一页最后一条 commentId 做游标顺序翻页。
+  const url = isHot
+    ? `https://app.c.nf.migu.cn/MIGUM3.0/user/comment/stack/v1.0?pageSize=${limit}&queryType=2&resourceId=${songId}&resourceType=2&hotCommentStart=${(page - 1) * limit}`
+    : `https://app.c.nf.migu.cn/MIGUM3.0/user/comment/stack/v1.0?pageSize=${limit}&queryType=1&resourceId=${songId}&resourceType=2&commentId=${page > 1 && cursor ? cursor : ""}`
   const res = await tauriFetch(url, {
     headers: {
       "User-Agent":
@@ -360,10 +601,16 @@ async function getMgComments(song: MusicInfo, page: number, limit: number): Prom
     },
   })
   if (!res.ok) throw new Error("获取评论失败")
-  const data = (await res.json()) as { code?: string; data?: { commentNums?: string; comments?: any[] } }
+  const data = (await res.json()) as {
+    code?: string
+    data?: { commentNums?: string; cfgHotCount?: string | number; comments?: any[]; hotComments?: any[] }
+  }
   if (data.code !== "000000" || !data.data) throw new Error("获取评论失败")
-  const total = parseInt(data.data.commentNums ?? "0") || 0
-  const comments: CommentItem[] = (data.data.comments ?? []).map((item) => ({
+  const total = isHot
+    ? parseInt(String(data.data.cfgHotCount ?? "0")) || 0
+    : parseInt(data.data.commentNums ?? "0") || 0
+  const rawList = (isHot ? data.data.hotComments : data.data.comments) ?? []
+  const comments: CommentItem[] = rawList.map((item) => ({
     id: String(item.commentId),
     text: item.commentInfo || "",
     userName: item.user?.nickName || "",
@@ -380,7 +627,17 @@ async function getMgComments(song: MusicInfo, page: number, limit: number): Prom
       likedCount: null,
     })),
   }))
-  return { source: "mg", comments, total, page, limit, maxPage: Math.ceil(total / limit) || 1 }
+  return {
+    source: "mg",
+    comments,
+    total,
+    page,
+    limit,
+    maxPage: Math.ceil(total / limit) || 1,
+    sort,
+    cursorPaging: !isHot,
+    nextCursor: isHot ? null : comments.length ? comments[comments.length - 1].id : null,
+  }
 }
 
 // --- entry ----------------------------------------------------------------
@@ -390,22 +647,27 @@ async function getMgComments(song: MusicInfo, page: number, limit: number): Prom
  * Kuwo (kw) and Migu (mg). Unsupported platforms throw so callers can show a
  * friendly "not supported" state.
  */
-export async function getComments(
-  song: MusicInfo,
-  page = 1,
-  limit = 20,
-): Promise<CommentPage> {
+export async function getComments(song: MusicInfo, query: CommentQuery = {}): Promise<CommentPage> {
+  const page = query.page ?? 1
+  const limit = query.limit ?? 20
+  const cursor = query.cursor ?? null
+  // 平台不支持所请求的排序时回退到它支持的第一种，避免 UI 抛错。
+  const allowed = supportedSorts(song.source)
+  const sort: CommentSort = query.sort && allowed.includes(query.sort) ? query.sort : allowed[0]
+
   switch (song.source) {
     case "wy":
-      return getWyComments(song, page, limit)
+      return getWyComments(song, page, limit, sort, cursor)
     case "tx":
-      return getTxComments(song, page, limit)
+      return sort === "hot"
+        ? getTxHotComments(song, page, limit)
+        : getTxComments(song, page, limit)
     case "kg":
-      return getKgComments(song, page, limit)
+      return getKgComments(song, page, limit, sort)
     case "kw":
-      return getKwComments(song, page, limit)
+      return getKwComments(song, page, limit, sort)
     case "mg":
-      return getMgComments(song, page, limit)
+      return getMgComments(song, page, limit, sort, cursor)
     default:
       throw new Error(`平台「${song.source}」暂不支持在线评论`)
   }

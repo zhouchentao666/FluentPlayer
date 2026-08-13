@@ -1,7 +1,14 @@
 <script lang="ts" setup>
 import { ref, computed, watch } from 'vue'
 import type { MusicInfo } from '@online/types/music'
-import { getComments, type CommentItem, type CommentPage } from '@online/lib/comment'
+import {
+  getComments,
+  supportedSorts,
+  COMMENT_SORTS,
+  type CommentItem,
+  type CommentPage,
+  type CommentSort,
+} from '@online/lib/comment'
 
 const props = defineProps<{
   song: MusicInfo | null
@@ -16,13 +23,38 @@ const limit = 20
 const loading = ref(false)
 const errorMsg = ref('')
 const data = ref<CommentPage | null>(null)
+const sort = ref<CommentSort>('hot')
+// 游标翻页平台（网易云最新/最旧、咪咕最新）只能顺序前进，
+// 这里按页号缓存游标，从而也能正确后退。
+const cursors = ref<Record<number, string | null>>({})
 
 const comments = computed<CommentItem[]>(() => data.value?.comments ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const maxPage = computed(() => data.value?.maxPage ?? 1)
-const sourceLabel = computed(() => {
-  if (!props.song) return ''
-  return props.song.source === 'wy' ? '网易云音乐' : props.song.source === 'tx' ? 'QQ 音乐' : props.song.source
+const cursorPaging = computed(() => data.value?.cursorPaging === true)
+// 游标模式下无法跳页，只有拿到 nextCursor 才有下一页。
+const hasNext = computed(() =>
+  cursorPaging.value ? !!data.value?.nextCursor : page.value < maxPage.value,
+)
+const hasPrev = computed(() => page.value > 1)
+const showPager = computed(() => hasPrev.value || hasNext.value)
+
+const SOURCE_LABELS: Record<string, string> = {
+  wy: '网易云音乐',
+  tx: 'QQ 音乐',
+  kg: '酷狗音乐',
+  kw: '酷我音乐',
+  mg: '咪咕音乐',
+}
+const sourceLabel = computed(() =>
+  props.song ? (SOURCE_LABELS[props.song.source] ?? props.song.source) : '',
+)
+
+// 当前平台可用的排序分类
+const sortTabs = computed(() => {
+  if (!props.song) return []
+  const allowed = supportedSorts(props.song.source)
+  return COMMENT_SORTS.filter((s) => allowed.includes(s.value))
 })
 
 async function load(pageNo = 1) {
@@ -30,8 +62,16 @@ async function load(pageNo = 1) {
   loading.value = true
   errorMsg.value = ''
   try {
-    data.value = await getComments(props.song, pageNo, limit)
+    const res = await getComments(props.song, {
+      page: pageNo,
+      limit,
+      sort: sort.value,
+      cursor: cursors.value[pageNo] ?? null,
+    })
+    data.value = res
     page.value = pageNo
+    // 记录下一页的游标
+    if (res.cursorPaging) cursors.value[pageNo + 1] = res.nextCursor ?? null
   } catch (err) {
     errorMsg.value = (err as Error).message || '获取评论失败'
     data.value = null
@@ -41,12 +81,31 @@ async function load(pageNo = 1) {
 }
 
 function goPage(next: number) {
-  if (next < 1 || next > maxPage.value || next === page.value) return
+  if (loading.value) return
+  if (next < 1 || next === page.value) return
+  if (next > page.value && !hasNext.value) return
+  if (!cursorPaging.value && next > maxPage.value) return
   void load(next)
 }
 
-// 切换歌曲时重新加载；进入时立即加载
-watch(() => props.song, () => { void load(1) }, { immediate: true })
+function changeSort(next: CommentSort) {
+  if (sort.value === next || loading.value) return
+  sort.value = next
+  cursors.value = {}
+  void load(1)
+}
+
+// 切换歌曲时重置分类与游标并重新加载；进入时立即加载
+watch(
+  () => props.song,
+  () => {
+    const allowed = props.song ? supportedSorts(props.song.source) : ['hot' as CommentSort]
+    if (!allowed.includes(sort.value)) sort.value = allowed[0]
+    cursors.value = {}
+    void load(1)
+  },
+  { immediate: true },
+)
 
 function fmtCount(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万'
@@ -72,6 +131,19 @@ function fmtCount(n: number): string {
         <div class="cv-sub" v-else>未播放在线歌曲</div>
       </div>
     </header>
+
+    <nav v-if="song && sortTabs.length > 1" class="cv-tabs">
+      <button
+        v-for="t in sortTabs"
+        :key="t.value"
+        class="cv-tab"
+        :class="{ active: sort === t.value }"
+        :disabled="loading"
+        @click="changeSort(t.value)"
+      >
+        {{ t.label }}
+      </button>
+    </nav>
 
     <div class="cv-body">
       <div v-if="!song" class="cv-empty">当前没有可显示评论的在线歌曲，请先在在线页面播放一首歌。</div>
@@ -117,10 +189,12 @@ function fmtCount(n: number): string {
       </ul>
     </div>
 
-    <footer v-if="song && maxPage > 1" class="cv-pager">
-      <button class="cv-page-btn" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
-      <span class="cv-page-info">{{ page }} / {{ maxPage }}</span>
-      <button class="cv-page-btn" :disabled="page >= maxPage" @click="goPage(page + 1)">下一页</button>
+    <footer v-if="song && showPager" class="cv-pager">
+      <button class="cv-page-btn" :disabled="!hasPrev || loading" @click="goPage(page - 1)">上一页</button>
+      <span class="cv-page-info">
+        {{ page }}<template v-if="!cursorPaging"> / {{ maxPage }}</template>
+      </span>
+      <button class="cv-page-btn" :disabled="!hasNext || loading" @click="goPage(page + 1)">下一页</button>
     </footer>
   </div>
 </template>
@@ -174,6 +248,34 @@ function fmtCount(n: number): string {
 }
 .cv-source {
   color: var(--fluent-accent, #4a90d9);
+}
+.cv-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 10px 20px 0;
+  flex-shrink: 0;
+}
+.cv-tab {
+  padding: 5px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--fluent-bg-hover, rgba(255, 255, 255, 0.06));
+  color: var(--fluent-text-secondary, rgba(255, 255, 255, 0.65));
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cv-tab:hover:not(:disabled):not(.active) {
+  background: var(--fluent-bg-active, rgba(255, 255, 255, 0.12));
+  color: var(--fluent-text, #fff);
+}
+.cv-tab.active {
+  background: var(--fluent-accent, #4a90d9);
+  color: #fff;
+}
+.cv-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .cv-body {
   flex: 1;
