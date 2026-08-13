@@ -4,6 +4,50 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FluentPlayer</title>
+    <style>
+      /* 启动期遮罩：在 WebView 渲染空文档、Vue 挂载前避免白屏闪现。
+         背景与窗口 windowEffects(acrylic/mica) 一致 —— 深色透明，
+         保证透明窗口在字体/JS 加载前也是深色底，不闪白。 */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: transparent;
+        color-scheme: dark;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+        background-color: rgba(20, 20, 22, 0.9);
+      }
+      /* 首屏骨架：居中旋转环，替代纯色空白 */
+      #app::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 34px;
+        height: 34px;
+        margin: -17px 0 0 -17px;
+        border: 3px solid rgba(255, 255, 255, 0.18);
+        border-top-color: rgba(255, 255, 255, 0.85);
+        border-radius: 50%;
+        animation: fp-spin 0.8s linear infinite;
+      }
+      @keyframes fp-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app::before {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
