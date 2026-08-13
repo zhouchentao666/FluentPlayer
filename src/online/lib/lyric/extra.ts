@@ -215,7 +215,7 @@ async function getTxNativeLyric(songmid: string): Promise<LyricInfo | null> {
     if (!parsed) return null
     const translation = payload.trans ? parseQrcPayload(payload.trans)?.lyric ?? null : null
     const romanization = payload.roma ? parseQrcPayload(payload.roma)?.lyric ?? null : null
-    return { lyric: parsed.lyric, lxlyric: parsed.lxlyric, tlyric: translation, rlyric: romanization }
+    return { lyric: parsed.lyric, lxlyric: parsed.lxlyric, tlyric: translation, rlyric: romanization, lyricType: 'qrc' }
   } catch {
     return null
   }
@@ -313,6 +313,7 @@ export async function getWyLyric(song: MusicInfo): Promise<LyricInfo | null> {
       lyric: lrc ?? "",
       tlyric: tlyric || null,
       lxlyric: yrc?.trim() ? yrc : null,
+      lyricType: yrc?.trim() ? 'yrc' : undefined,
       ttml: amllTtml,
     }
   } catch {

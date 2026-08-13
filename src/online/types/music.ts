@@ -69,6 +69,14 @@ export interface LyricInfo {
   tlyric?: string | null
   rlyric?: string | null
   lxlyric?: string | null
+  /**
+   * lxlyric 的格式，由歌词抓取层显式声明，避免 useLyrics
+   * 用脆弱正则（如要求同时含 [ti:][ar:][al:]）误判导致逐字丢失。
+   *   'qrc'  — QQ 音乐 QRC 逐字（<dur,off,len> 元信息）
+   *   'yrc'  — 网易云 YRC 逐字（[行起,行长](起,长,0)字…）
+   *   'lrc'  — 普通逐行 LRC（无字级时间）
+   */
+  lyricType?: 'qrc' | 'yrc' | 'lrc'
   /** AMLL / TTML 逐字歌词原文（网易云 v1 接口返回）；优先于 lrc 使用，不转成 lrc。 */
   ttml?: string | null
 }

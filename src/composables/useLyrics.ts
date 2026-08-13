@@ -104,8 +104,13 @@ export function useLyrics(currentSong: Ref<{ path: string; online?: MusicInfo } 
     if (!lyricInfo?.lyric) return
     // 优先级：amll 逐字 TTML（ttml）> 平台自带逐字（lxlyric：lrc-a2/yrc）> 纯 LRC。
     // amll（amll-ttml-db 社区库）命中时默认优先使用，提供最完整的逐字高亮。
+    // 优先级：amll 逐字 TTML（ttml）> 平台自带逐字（lxlyric：qrc/yrc）> 纯 LRC。
+    // amll（amll-ttml-db 社区库）命中时默认优先使用，提供最完整的逐字高亮。
+    // 平台自带逐字用 lyricType 显式指定格式，避免 isQrcFormat 等脆弱正则
+    // 误判（如 QQ QRC 常缺 [al:] 标签导致整段逐字被当成纯 LRC 解析 → 无歌词）。
+    const useLx = !lyricInfo.ttml && !!lyricInfo.lxlyric
     const rawLyric = lyricInfo.ttml || lyricInfo.lxlyric || lyricInfo.lyric
-    const parsed = parseLyric(rawLyric)
+    const parsed = parseLyric(rawLyric, useLx ? lyricInfo.lyricType : undefined)
     lyrics.value = parsed
     hasLyrics.value = parsed.length > 0
   }
