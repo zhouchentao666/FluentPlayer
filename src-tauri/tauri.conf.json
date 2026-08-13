@@ -23,7 +23,6 @@
         "transparent": true,
         "center": true,
         "dragDropEnabled": true,
-        "backgroundColor": "#00000000",
         "windowEffects": {
           "effects": ["acrylic", "mica"]
         }
