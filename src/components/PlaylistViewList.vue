@@ -5,7 +5,6 @@ import type { SortMode } from '../composables/usePlaylistView'
 import { OpenInExplorer } from '@bridge/app'
 import { useSongEditor } from '../composables/useSongEditor'
 import { downloadSong } from '@online/lib/download'
-import { isDesktop } from '../composables/usePlatform'
 import WinUICheckBox from './settings/WinUICheckBox.vue'
 import {
   displayTitle,
@@ -180,7 +179,6 @@ function editSong(song: Song) {
 }
 
 function openExplorer() {
-  if (!isDesktop.value) return
   if (contextSong.value) OpenInExplorer(contextSong.value.path)
   closeMenu()
 }
@@ -356,7 +354,7 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
       </template>
       <template v-else>
         <div class="menu-item" @click="openEditor">编辑</div>
-        <div v-if="isDesktop" class="menu-item" @click="openExplorer">在文件资源管理器打开</div>
+        <div class="menu-item" @click="openExplorer">在文件资源管理器打开</div>
       </template>
       <div class="menu-item" @click="removeFromPlaylist">从歌单移除</div>
       <div

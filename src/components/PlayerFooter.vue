@@ -9,7 +9,6 @@ import PlaybackRateControl from './player/PlaybackRateControl.vue'
 import { activeQuality } from '@online/player'
 import { qualityLevelsFor, QUALITY_SHORT } from '@online/lib/quality'
 import type { Quality } from '@online/types/music'
-import { isDesktop } from '../composables/usePlatform'
 
 const props = defineProps<{
   currentSong: Song | null
@@ -166,7 +165,6 @@ if (typeof window !== 'undefined') {
         </button>
 
         <button
-          v-if="isDesktop"
           class="side-btn lyric-btn"
           :class="{ active: desktopLyricEnabled }"
           title="桌面歌词"

@@ -3,7 +3,6 @@ import { cdnHeadersForUrl } from './cdnHeaders'
 import { getBuiltinLyric } from './lyric'
 import type { MusicInfo } from '../types/music'
 import { toast } from '../../composables/useToast'
-import { isMobile } from '../../composables/usePlatform'
 import { SaveFile, DownloadFile, OpenMusicFolder, LoadConfig, DefaultMusicFolder } from '../../bridge/app'
 
 /** 去除文件名中的非法字符，并限制长度。 */
@@ -78,10 +77,6 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
   if (dir) {
     const sep = dir.endsWith('/') || dir.endsWith('\\') ? '' : '\\'
     dest = dir + sep + name
-  } else if (isMobile.value) {
-    // 移动端无系统“保存文件”对话框，且默认音乐文件夹必然可用，走到这里说明环境异常
-    toast('无法确定下载目录（请检查应用存储权限）', 'error')
-    return false
   } else {
     // 无可用目录时回退到保存文件对话框
     const picked = await SaveFile(name)
@@ -142,14 +137,7 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
 export async function downloadMany(musics: MusicInfo[], folder?: string): Promise<void> {
   if (!musics.length) return
   const dir = folder !== undefined ? folder : await resolveFolder()
-  let target = dir
-  if (!target) {
-    if (isMobile.value) {
-      toast('无法确定下载目录（请检查应用存储权限）', 'error')
-      return
-    }
-    target = await OpenMusicFolder()
-  }
+  const target = dir || (await OpenMusicFolder())
   if (!target) return // 用户取消
 
   let done = 0

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "FluentPlayer 默认能力：主窗口、编辑器窗口、桌面歌词窗口（不含桌面专属插件）",
+  "description": "FluentPlayer 默认能力：主窗口、编辑器窗口、桌面歌词窗口",
   "windows": ["main", "editor", "desktop-lyric"],
   "permissions": [
     "core:default",
@@ -31,6 +31,9 @@
     "core:webview:default",
     "dialog:default",
     "opener:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     "http:default",
     {
       "identifier": "http:allow-fetch",

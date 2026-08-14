@@ -11,7 +11,6 @@ import {
 } from '../composables/useConfig'
 import { useFontList } from '../composables/useFontList'
 import { useUpdater } from '../composables/useUpdater'
-import { isDesktop } from '../composables/usePlatform'
 import SettingCard from './settings/SettingCard.vue'
 import SettingRow from './settings/SettingRow.vue'
 import SegmentedControl from './settings/SegmentedControl.vue'
@@ -203,14 +202,12 @@ function manualCheckUpdate() {
         <SettingRow label="下载保存目录" description="在线歌曲下载后保存到的文件夹，未设置时使用系统音乐文件夹，下载时不再弹出选择框">
           <div class="folder-row">
             <div class="folder-path" :title="downloadFolderDisplay">{{ downloadFolderDisplay }}</div>
-            <template v-if="isDesktop">
-              <button class="fluent-btn" @click="selectDownloadFolder">选择文件夹</button>
-              <button
-                class="fluent-btn"
-                :disabled="!settings.downloadFolder"
-                @click="resetDownloadFolder"
-              >恢复默认</button>
-            </template>
+            <button class="fluent-btn" @click="selectDownloadFolder">选择文件夹</button>
+            <button
+              class="fluent-btn"
+              :disabled="!settings.downloadFolder"
+              @click="resetDownloadFolder"
+            >恢复默认</button>
           </div>
         </SettingRow>
         <SettingRow label="内嵌歌词" description="下载在线歌曲时把歌词写入音频文件标签">
@@ -249,7 +246,7 @@ function manualCheckUpdate() {
         </SettingRow>
       </SettingCard>
 
-      <WindowEffectSettings v-if="isDesktop" :settings="settings" @update="update" />
+      <WindowEffectSettings :settings="settings" @update="update" />
 
       <SettingCard title="全屏播放器">
         <SettingRow label="背景效果" description="选择全屏播放器的背景效果">
@@ -336,7 +333,7 @@ function manualCheckUpdate() {
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="快捷键" v-if="isDesktop">
+      <SettingCard title="快捷键">
         <SettingRow
           v-for="action in HOTKEY_ACTIONS"
           :key="action.value"
@@ -351,7 +348,7 @@ function manualCheckUpdate() {
       </SettingCard>
 
       <SettingCard title="系统">
-        <SettingRow v-if="isDesktop" label="开机自动启动" description="登录系统后自动运行 fluentplayer">
+        <SettingRow label="开机自动启动" description="登录系统后自动运行 fluentplayer">
           <ToggleSwitch
             :model-value="settings.autoStart"
             @update:model-value="value => update({ autoStart: value })"
@@ -368,13 +365,13 @@ function manualCheckUpdate() {
             {{ checking ? '检查中…' : '检查更新' }}
           </button>
         </SettingRow>
-        <SettingRow v-if="isDesktop" label="启用系统托盘" description="在任务栏托盘显示 fluentplayer 图标">
+        <SettingRow label="启用系统托盘" description="在任务栏托盘显示 fluentplayer 图标">
           <ToggleSwitch
             :model-value="settings.trayEnabled"
             @update:model-value="value => update({ trayEnabled: value })"
           />
         </SettingRow>
-        <SettingRow v-if="isDesktop" label="关闭按钮最小化到托盘" description="点击标题栏关闭按钮时隐藏到托盘而不是退出">
+        <SettingRow label="关闭按钮最小化到托盘" description="点击标题栏关闭按钮时隐藏到托盘而不是退出">
           <ToggleSwitch
             :model-value="settings.closeToTray"
             :disabled="!settings.trayEnabled"
@@ -389,7 +386,7 @@ function manualCheckUpdate() {
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="桌面歌词" v-if="isDesktop">
+      <SettingCard title="桌面歌词">
         <DesktopLyricSettings
           :config="settings.desktopLyric"
           :enabled="settings.desktopLyric.enabled"

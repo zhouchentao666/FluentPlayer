@@ -1,9 +1,7 @@
-use tauri::{AppHandle, Emitter, Manager};
-#[cfg(desktop)]
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_autostart::ManagerExt;
 
-/// 在资源管理器中定位文件（仅桌面端可用）
-#[cfg(desktop)]
+/// 在资源管理器中定位文件
 #[tauri::command]
 pub fn open_in_explorer(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -39,13 +37,11 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-#[cfg(desktop)]
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-#[cfg(desktop)]
 pub fn show_main(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.show();
@@ -54,14 +50,12 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-#[cfg(desktop)]
 #[tauri::command]
 pub fn show_main_window(app: AppHandle) {
     show_main(&app);
 }
 
-/// 开机自启动开关（仅桌面端可用）
-#[cfg(desktop)]
+/// 开机自启动开关
 #[tauri::command]
 pub fn apply_auto_start(app: AppHandle, enabled: bool) -> Result<(), String> {
     let manager = app.autolaunch();
@@ -80,11 +74,9 @@ pub fn emit_metadata_changed(app: AppHandle) -> Result<(), String> {
     app.emit("localmetadata:changed", ()).map_err(|e| e.to_string())
 }
 
-/// 打开歌曲信息编辑器窗口（仅桌面端可用）
-#[cfg(desktop)]
+/// 打开歌曲信息编辑器窗口
 #[tauri::command]
 pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String> {
-    use tauri::{WebviewUrl, WebviewWindowBuilder};
     const LABEL: &str = "editor";
     // 已存在则先销毁再按新歌曲重建（URL query 携带歌曲路径）
     if let Some(win) = app.get_webview_window(LABEL) {
@@ -112,7 +104,6 @@ pub async fn open_song_editor(app: AppHandle, path: String) -> Result<(), String
 }
 
 /// 关闭到托盘偏好（前端在关闭时自行处理隐藏逻辑，这里仅保留兼容命令）
-#[cfg(desktop)]
 #[tauri::command]
 pub fn set_close_to_tray(_enabled: bool) {}
 

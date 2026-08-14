@@ -47,7 +47,6 @@ import { useSongEditor } from './composables/useSongEditor'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
-import { isDesktop } from './composables/usePlatform'
 
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
@@ -74,24 +73,21 @@ async function handleDropPaths(paths: string[]) {
 }
 
 onMounted(async () => {
-  // 原生拖放仅桌面端可用（移动端无文件系统拖入）
-  if (isDesktop.value) {
-    try {
-      unlistenDrag = onDragDrop({
-        onEnter: () => {
-          dragActive.value = true
-        },
-        onLeave: () => {
-          dragActive.value = false
-        },
-        onDrop: (paths) => {
-          dragActive.value = false
-          void handleDropPaths(paths)
-        },
-      })
-    } catch {
-      // 拖放不可用（如非 Tauri 环境）时静默忽略
-    }
+  try {
+    unlistenDrag = onDragDrop({
+      onEnter: () => {
+        dragActive.value = true
+      },
+      onLeave: () => {
+        dragActive.value = false
+      },
+      onDrop: (paths) => {
+        dragActive.value = false
+        void handleDropPaths(paths)
+      },
+    })
+  } catch {
+    // 拖放不可用（如非 Tauri 环境）时静默忽略
   }
   // 启动后即初始化在线音源，使音源 handler 尽快就绪，
   // 避免用户首次进入在线视图播放时因初始化未完成而误判为“无音源”。
@@ -197,17 +193,14 @@ const { dispose: disposeBridge } = useDesktopLyricBridge({
     onPrev: playPrev,
     onNext: playNext,
     onToggle: handleTogglePlay,
-    onShowMain: () => {
-      if (!isDesktop.value) return
-      ShowMainWindow().catch(() => {})
-    },
+    onShowMain: () => ShowMainWindow().catch(() => {}),
     onClose: () => {
-      if (isDesktop.value) CloseDesktopLyric().catch(() => {})
+      CloseDesktopLyric().catch(() => {})
       settings.value.desktopLyric.enabled = false
     },
     onLockChange: (locked: boolean) => {
       settings.value.desktopLyric.isLock = locked
-      if (isDesktop.value) SetDesktopLyricIgnoreMouseEvents(locked).catch(() => {})
+      SetDesktopLyricIgnoreMouseEvents(locked).catch(() => {})
     },
   },
 })
@@ -334,7 +327,7 @@ function buildTraySongLabel(song: Song | null): string {
 }
 
 function syncTraySongInfo() {
-  if (!isDesktop.value || !settings.value.trayEnabled) return
+  if (!settings.value.trayEnabled) return
   SetTraySongInfo(buildTraySongLabel(audio.currentSong.value)).catch(() => {})
 }
 
@@ -458,7 +451,7 @@ let traySyncId = 0
 let traySyncQueue = Promise.resolve()
 
 function syncTraySettings() {
-  if (!isDesktop.value || isLoading.value) return
+  if (isLoading.value) return
 
   const syncId = ++traySyncId
   const trayEnabled = settings.value.trayEnabled
@@ -478,7 +471,6 @@ function syncTraySettings() {
 }
 
 watch(() => settings.value.autoStart, (enabled) => {
-  if (!isDesktop.value) return
   ApplyAutoStart(enabled).catch(() => {})
 })
 
@@ -499,9 +491,7 @@ onMounted(async () => {
   await rewatchFolders()
   await restoreSession()
 
-  if (isDesktop.value) {
-    ApplyAutoStart(settings.value.autoStart).catch(() => {})
-  }
+  ApplyAutoStart(settings.value.autoStart).catch(() => {})
   syncTraySettings()
   await openIfEnabled()
 
@@ -525,12 +515,9 @@ onMounted(async () => {
       // ignore
     }
   })
-  // 系统托盘事件仅桌面端注册
-  if (isDesktop.value) {
-    offTrayPrev = Events.On('tray:prev', playPrev)
-    offTrayNext = Events.On('tray:next', playNext)
-    offTrayExit = Events.On('tray:exit', handleTrayExit)
-  }
+  offTrayPrev = Events.On('tray:prev', playPrev)
+  offTrayNext = Events.On('tray:next', playNext)
+  offTrayExit = Events.On('tray:exit', handleTrayExit)
 })
 
 onUnmounted(() => {
@@ -562,7 +549,7 @@ onUnmounted(() => {
         <div class="boot-spinner"></div>
       </div>
     </Transition>
-    <TitleBar v-if="isDesktop" @close="handleClose" />
+    <TitleBar @close="handleClose" />
     <div class="content">
       <Sidebar
         :playlists="playlists"
@@ -740,7 +727,7 @@ onUnmounted(() => {
     <audio ref="audioRef" style="display: none;"></audio>
 
     <Transition name="fade">
-      <div v-if="isDesktop && dragActive" class="drag-overlay">
+      <div v-if="dragActive" class="drag-overlay">
         <div class="drag-card">
           <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 16V4M7 9l5-5 5 5" />
