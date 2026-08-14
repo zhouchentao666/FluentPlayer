@@ -68,7 +68,9 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
     return false
   }
 
-  const base = `${m.singer ? m.singer + ' - ' : ''}${m.name}`
+  const title = (m.name || m.id || '未知歌曲').toString().trim()
+  const artist = (m.singer || '未知艺术家').toString().trim()
+  const base = `${artist !== '未知艺术家' ? artist + ' - ' : ''}${title}`
   const name = safeFileName(base) + '.' + inferExt(url)
   const dir = folder !== undefined ? folder : await resolveFolder()
   let dest: string
@@ -82,7 +84,7 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
     dest = picked
   }
 
-  toast(`开始下载：${m.name}`, 'info')
+  toast(`开始下载：${title}`, 'info')
   try {
     // 读取内嵌歌词 / 封面设置
     let embedLyrics = false
@@ -106,15 +108,19 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
       }
     }
     const coverUrl = embedCover ? (m.meta.picUrl || null) : null
+    const album = (m.albumName || '').toString().trim() || null
 
     const res = await DownloadFile(url, dest, cdnHeadersForUrl(url), {
       embedLyrics,
       embedCover,
       lyric: lyricText,
       coverUrl,
+      title,
+      artist,
+      album,
     })
     const mb = (res.size / 1024 / 1024).toFixed(1)
-    toast(`已下载：${m.name}（${mb} MB）`, 'success', 5000)
+    toast(`已下载：${title}（${mb} MB）`, 'success', 5000)
     return true
   } catch (e) {
     toast(`下载失败：${(e as Error)?.message || e}`, 'error', 6000)
@@ -157,12 +163,34 @@ export async function downloadMany(musics: MusicInfo[], folder?: string): Promis
         fail++
         continue
       }
-      const base = `${String(i + 1).padStart(2, '0')}. ${m.singer ? m.singer + ' - ' : ''}${m.name}`
+      const title = (m.name || m.id || '未知歌曲').toString().trim()
+      const artist = (m.singer || '未知艺术家').toString().trim()
+      const base = `${String(i + 1).padStart(2, '0')}. ${artist !== '未知艺术家' ? artist + ' - ' : ''}${title}`
       const name = safeFileName(base) + '.' + inferExt(url)
       const sep = target.endsWith('/') || target.endsWith('\\') ? '' : '\\'
       const dest = target + sep + name
       try {
-        await DownloadFile(url, dest, cdnHeadersForUrl(url))
+        // 批量下载同样内嵌基础元数据 + 歌词/封面
+        const embedLyrics = true
+        const embedCover = true
+        let lyricText: string | null = null
+        try {
+          const li = await getBuiltinLyric(m)
+          lyricText = li?.lyric?.trim() || null
+        } catch {
+          lyricText = null
+        }
+        const coverUrl = embedCover ? (m.meta.picUrl || null) : null
+        const album = (m.albumName || '').toString().trim() || null
+        await DownloadFile(url, dest, cdnHeadersForUrl(url), {
+          embedLyrics,
+          embedCover,
+          lyric: lyricText,
+          coverUrl,
+          title,
+          artist,
+          album,
+        })
         done++
       } catch {
         fail++

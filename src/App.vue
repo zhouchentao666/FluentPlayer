@@ -51,7 +51,7 @@ import { useMediaSession } from './composables/useMediaSession'
 // ---- 更新检查 ----
 const { appVersion, latestVersion, showUpdate, checkForUpdates } = useUpdater()
 
-const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sources' | 'sponsor' | 'online-comments' | 'identify'>('main')
+const view = ref<'main' | 'settings' | 'online' | 'online-detail' | 'online-sources' | 'sponsor' | 'online-comments' | 'identify' | 'editor'>('main')
 
 // ---------- 原生拖放导入（从系统文件管理器批量拖入音频文件） ----------
 const dragActive = ref(false)
@@ -98,8 +98,13 @@ onUnmounted(() => {
 })
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
-// 编辑歌曲信息：应用内覆盖层（不再开新窗口）
-const { editingSong, closeEditor } = useSongEditor()
+// 编辑歌曲信息：作为主内容区的一个切换视图（而非弹窗/新窗口）
+const { editingSong, openEditor, closeEditor } = useSongEditor()
+// editingSong 非空即进入 editor 视图，关闭后回到主视图
+watch(editingSong, (v) => {
+  if (v) view.value = 'editor'
+  else if (view.value === 'editor') view.value = 'main'
+})
 const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
 const showQueue = ref(false)
@@ -544,18 +549,12 @@ onUnmounted(() => {
         <div class="boot-spinner"></div>
       </div>
     </Transition>
-    <!-- 编辑歌曲信息：应用内覆盖层（非独立窗口） -->
-    <EditorApp
-      v-if="editingSong"
-      :song="editingSong"
-      @close="closeEditor"
-    />
     <TitleBar @close="handleClose" />
     <div class="content">
       <Sidebar
         :playlists="playlists"
         :selected-id="selectedId"
-        :active-view="view === 'online-detail' || view === 'online-comments' || view === 'online-sources' || view === 'identify' ? 'online' : view"
+        :active-view="view === 'online-detail' || view === 'online-comments' || view === 'online-sources' || view === 'identify' ? 'online' : (view === 'editor' ? 'main' : view)"
         :online-tab="onlineTab"
         :pinned-online="settings.pinnedOnlinePlaylists"
         @update:playlists="updatePlaylists"
@@ -586,6 +585,12 @@ onUnmounted(() => {
             @add-to-playlist="addSongs"
             @replace-to-playlist="replaceSongs"
             @update-sort="handleUpdateSort"
+          />
+          <EditorApp
+            v-else-if="view === 'editor' && editingSong"
+            :key="'editor-' + editingSong.id"
+            :song="editingSong"
+            @close="closeEditor"
           />
           <Settings
             v-else-if="view === 'settings'"

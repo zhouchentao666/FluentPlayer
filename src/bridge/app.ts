@@ -137,6 +137,9 @@ export function DownloadFile(
     embedCover?: boolean
     lyric?: string | null
     coverUrl?: string | null
+    title?: string | null
+    artist?: string | null
+    album?: string | null
   },
 ): Promise<{ size: number; path: string; duration_ms: number }> {
   return invoke('download_file', {
@@ -147,6 +150,9 @@ export function DownloadFile(
     embed_cover: options?.embedCover ?? null,
     lyric: options?.lyric ?? null,
     cover_url: options?.coverUrl ?? null,
+    title: options?.title ?? null,
+    artist: options?.artist ?? null,
+    album: options?.album ?? null,
   })
 }
 

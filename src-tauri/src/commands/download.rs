@@ -157,6 +157,9 @@ pub async fn download_file(
     embed_cover: Option<bool>,
     lyric: Option<String>,
     cover_url: Option<String>,
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
 ) -> Result<DownloadResult, String> {
     let embed_lyrics = embed_lyrics.unwrap_or(false);
     let embed_cover = embed_cover.unwrap_or(false);
@@ -229,7 +232,7 @@ pub async fn download_file(
             Ok(_) => {
                 let size = bytes.len() as u64;
                 // 下载成功后再尝试内嵌歌词 / 封面（失败不影响已完成的下载）。
-                if embed_lyrics || embed_cover {
+                if embed_lyrics || embed_cover || title.is_some() || artist.is_some() || album.is_some() {
                     let _ = embed_tags(
                         &app,
                         &client,
@@ -238,6 +241,9 @@ pub async fn download_file(
                         embed_cover,
                         lyric.as_deref(),
                         cover_url.as_deref(),
+                        title.as_deref(),
+                        artist.as_deref(),
+                        album.as_deref(),
                     )
                     .await;
                 }
@@ -282,6 +288,9 @@ async fn embed_tags(
     embed_cover: bool,
     lyric: Option<&str>,
     cover_url: Option<&str>,
+    title: Option<&str>,
+    artist: Option<&str>,
+    album: Option<&str>,
 ) -> Result<(), String> {
     let mut tagged = Probe::open(dest)
         .map_err(|e| e.to_string())?
@@ -291,6 +300,25 @@ async fn embed_tags(
         Some(t) => t.clone(),
         None => Tag::new(tagged.primary_tag_type()),
     };
+
+    if let Some(t) = title {
+        let t = t.trim();
+        if !t.is_empty() {
+            tag.insert_text(ItemKey::TrackTitle, t.to_string());
+        }
+    }
+    if let Some(a) = artist {
+        let a = a.trim();
+        if !a.is_empty() {
+            tag.insert_text(ItemKey::TrackArtist, a.to_string());
+        }
+    }
+    if let Some(al) = album {
+        let al = al.trim();
+        if !al.is_empty() {
+            tag.insert_text(ItemKey::AlbumTitle, al.to_string());
+        }
+    }
 
     if embed_lyrics {
         if let Some(l) = lyric {

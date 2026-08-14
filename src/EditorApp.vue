@@ -304,27 +304,25 @@ watch(
 
 <style scoped>
 .editor-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
+  height: 100%;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  background: rgba(18, 18, 20, 0.55);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--fluent-bg, rgba(20, 20, 22, 0.9));
 }
 
 .editor-root {
-  width: min(560px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
+  width: min(640px, 100%);
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   border-radius: 14px;
   overflow: hidden;
   background: var(--fluent-bg-card, rgba(32, 32, 36, 0.96));
   border: 1px solid var(--fluent-border, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
   color: var(--fluent-text);
   font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
