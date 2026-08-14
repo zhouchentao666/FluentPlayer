@@ -26,6 +26,11 @@
         "backgroundColor": "#00000000",
         "windowEffects": {
           "effects": ["acrylic", "mica"]
+        },
+        "mobile": {
+          "decorations": true,
+          "transparent": false,
+          "windowEffects": null
         }
       }
     ],
@@ -48,6 +53,26 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "android": {
+      "minSdkVersion": 24,
+      "features": [],
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.WAKE_LOCK",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "ios": {
+      "developmentTeam": "",
+      "minimumSystemVersion": "14.0",
+      "features": ["audio"]
+    }
   }
 }

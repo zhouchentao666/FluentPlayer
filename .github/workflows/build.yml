@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-desktop:
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +63,6 @@ jobs:
       - name: Build
         run: npm run tauri build
 
-      # 自动发布发行版：tag 推送为正式版，分支推送为预发布(nightly)
       - name: Publish release
         uses: softprops/action-gh-release@v2
         if: success()
@@ -77,3 +76,118 @@ jobs:
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           files: |
             src-tauri/target/release/bundle/**/*.{exe,msi,deb,AppImage,rpm,dmg,tar.gz}
+
+  build-android:
+    needs: build-desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain (with Android targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          LATEST_NDK=$(ls -d "$ANDROID_HOME/ndk/"* 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST_NDK" ]; then
+            sdkmanager "ndk;27.0.12077973"
+            LATEST_NDK="$ANDROID_HOME/ndk/27.0.12077973"
+          fi
+          echo "NDK_HOME=$LATEST_NDK" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$LATEST_NDK" >> "$GITHUB_ENV"
+          echo "Using NDK: $LATEST_NDK"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Android APK (arm64)
+        run: npx tauri android build --apk --target aarch64 --ci
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: fluentplayer-android
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+      - name: Publish Android APK to release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('nightly-{0}', github.run_number) }}
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+
+  # iOS 构建需要 Apple 开发者证书/Provisioning Profile，
+  # 仅当仓库配置了对应 secrets 时才运行；否则自动跳过。
+  # 本地无证书时可用：tauri ios build（需 macOS + Xcode + 付费开发者账号）
+  build-ios:
+    needs: build-desktop
+    if: ${{ secrets.APPLE_CERTIFICATE != '' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain (with iOS targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Import Apple signing certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/build_cert.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build iOS IPA
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx tauri ios build --ci
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: fluentplayer-ios
+          path: |
+            src-tauri/target/aarch64-apple-ios/release/*.ipa
+            src-tauri/target/aarch64-apple-ios/release/bundle/**/*.ipa

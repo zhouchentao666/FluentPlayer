@@ -1,0 +1,28 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "FluentPlayer 移动端能力：主窗口的核心/对话框/HTTP 权限",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit-to",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
+    "core:webview:default",
+    "dialog:default",
+    "opener:default",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "http://**" }, { "url": "https://**" }]
+    }
+  ]
+}

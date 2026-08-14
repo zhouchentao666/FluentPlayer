@@ -1,4 +1,6 @@
-﻿use std::sync::Mutex;
+﻿#![cfg(desktop)]
+
+use std::sync::Mutex;
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, State, Wry};

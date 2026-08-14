@@ -1,3 +1,5 @@
+#![cfg(desktop)]
+
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
 use super::config::desktop_lyric_value;

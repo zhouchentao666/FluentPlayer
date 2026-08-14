@@ -1,6 +1,7 @@
 import { Events } from '@bridge/runtime'
 import { watch, type Ref } from 'vue'
 import { ToggleDesktopLyric, CloseDesktopLyric } from '@bridge/app'
+import { isDesktop } from './usePlatform'
 import type { AppSettings } from './useConfig'
 
 export interface UseDesktopLyricOptions {
@@ -11,6 +12,7 @@ export function useDesktopLyric(options: UseDesktopLyricOptions) {
   const { settings } = options
 
   async function applyEnabled(value: boolean) {
+    if (!isDesktop.value) return
     await ToggleDesktopLyric(value).catch(() => {})
     if (!value) {
       await CloseDesktopLyric().catch(() => {})

@@ -14,11 +14,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
-tauri-plugin-autostart = "2"
-tauri-plugin-single-instance = "2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -28,6 +26,17 @@ base64 = "0.22"
 encoding_rs = "0.8"
 notify = "6"
 urlencoding = "2"
+
+# 桌面专属依赖（windows / macOS / linux）
+[target.'cfg(desktop)'.dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+
+# 移动端专属依赖（android / ios）
+# 注意：Tauri v2 的移动端支持由编译目标（cfg(mobile)）自动启用，
+# `tauri` crate 没有名为 "mobile" 的 feature，请勿在此声明 features。
+# 当前移动端无需任何专属 crate；如需 android/ios 专属依赖可在此段添加。
 
 [profile.release]
 panic = "abort"

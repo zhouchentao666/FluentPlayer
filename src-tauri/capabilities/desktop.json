@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "FluentPlayer 桌面专属能力：开机自启动插件（仅桌面端存在该插件）",
+  "windows": ["main", "editor", "desktop-lyric"],
+  "permissions": [
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
+  ]
+}

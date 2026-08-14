@@ -130,6 +130,8 @@ fn looks_like_audio(b: &[u8]) -> bool {
 }
 
 /// 弹出“保存文件”对话框，返回用户选择的完整路径（取消则返回 null）。
+/// 移动端不支持 blocking 对话框，仅桌面端可用。
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn save_file(app: AppHandle, default_name: String) -> Result<Option<String>, String> {
     let picked = app
