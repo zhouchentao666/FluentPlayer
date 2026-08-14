@@ -10,7 +10,7 @@ use lofty::config::WriteOptions;
 use lofty::file::{AudioFile, TaggedFileExt};
 use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::probe::Probe;
-use lofty::tag::{ItemKey, Tag, TagType};
+use lofty::tag::{ItemKey, Tag};
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -310,10 +310,12 @@ async fn embed_tags(
                 .await
             {
                 if let Ok(bytes) = resp.bytes().await {
-                    let pic = Picture::unchecked(bytes.to_vec())
-                        .pic_type(PictureType::CoverFront)
-                        .mime_type(infer_mime(&bytes))
-                        .build();
+                    let pic = Picture::new_unchecked(
+                        PictureType::CoverFront,
+                        Some(infer_mime(&bytes)),
+                        None,
+                        bytes.to_vec(),
+                    );
                     tag.push_picture(pic);
                 }
             }
