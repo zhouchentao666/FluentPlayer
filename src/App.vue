@@ -141,6 +141,9 @@ const settings = ref<AppSettings>({
   playQuality: '320k',
   downloadQuality: 'flac',
   systemMediaControl: true,
+  embedLyrics: true,
+  embedCover: true,
+  maxCacheMB: 1024,
 })
 
 const playbackState = ref<ConfigPlayback>({

@@ -105,7 +105,7 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
         lyricText = null
       }
     }
-    const coverUrl = embedCover ? (m.cover || null) : null
+    const coverUrl = embedCover ? (m.meta.picUrl || null) : null
 
     const res = await DownloadFile(url, dest, cdnHeadersForUrl(url), {
       embedLyrics,

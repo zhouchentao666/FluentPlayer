@@ -258,9 +258,10 @@ export function useConfig(
           onlineSorts: (config.settings.onlineSorts as Record<string, string[]>) ?? {},
           embedLyrics: ((config.settings as unknown as Record<string, unknown>).embedLyrics as boolean) ?? true,
           embedCover: ((config.settings as unknown as Record<string, unknown>).embedCover as boolean) ?? true,
-          maxCacheMB: typeof (config.settings as unknown as Record<string, unknown>).maxCacheMB === 'number' && (config.settings as unknown as Record<string, unknown>).maxCacheMB > 0
-            ? ((config.settings as unknown as Record<string, unknown>).maxCacheMB as number)
-            : 1024,
+          maxCacheMB: (() => {
+            const raw = (config.settings as unknown as Record<string, unknown>).maxCacheMB
+            return typeof raw === 'number' && raw > 0 ? raw : 1024
+          })(),
         }
         // 让在线数据缓存容量上限跟随「最大缓存」设置生效。
         setGlobalCacheLimit(settings.value.maxCacheMB)
