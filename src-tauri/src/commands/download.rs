@@ -5,7 +5,11 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_http::reqwest;
-use tauri_plugin_http::reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use tauri_plugin_http::reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
+use lofty::picture::{MimeType, Picture, PictureType};
+use lofty::probe::Probe;
+use lofty::tag::ItemKey;
+use lofty::{AudioFile, Tag, TagType};
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -139,6 +143,8 @@ pub async fn save_file(app: AppHandle, default_name: String) -> Result<Option<St
 ///
 /// - 按主机名自动补全防盗链请求头，并支持策略回退；
 /// - 下载完成后校验内容确为音频，否则删除并尝试下一种策略；
+/// - `embed_lyrics` / `embed_cover` 为真时，把 `lyric` 文本与
+///   `cover_url` 图片写入音频文件标签（失败不影响已完成的下载）；
 /// - 通过 `download-progress` 事件上报进度。
 #[tauri::command]
 pub async fn download_file(
@@ -146,7 +152,13 @@ pub async fn download_file(
     url: String,
     dest: String,
     headers: Option<HashMap<String, String>>,
+    embed_lyrics: Option<bool>,
+    embed_cover: Option<bool>,
+    lyric: Option<String>,
+    cover_url: Option<String>,
 ) -> Result<DownloadResult, String> {
+    let embed_lyrics = embed_lyrics.unwrap_or(false);
+    let embed_cover = embed_cover.unwrap_or(false);
     let host = host_of(&url);
     let provided: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let mut strategies = fetch_strategies(&host);
@@ -215,6 +227,19 @@ pub async fn download_file(
         match std::fs::write(&dest, &bytes) {
             Ok(_) => {
                 let size = bytes.len() as u64;
+                // 下载成功后再尝试内嵌歌词 / 封面（失败不影响已完成的下载）。
+                if embed_lyrics || embed_cover {
+                    let _ = embed_tags(
+                        &app,
+                        &client,
+                        &dest,
+                        embed_lyrics,
+                        embed_cover,
+                        lyric.as_deref(),
+                        cover_url.as_deref(),
+                    )
+                    .await;
+                }
                 emit_progress(DownloadProgress {
                     url: url.clone(),
                     dest: dest.clone(),
@@ -244,4 +269,76 @@ pub async fn download_file(
         error: Some(last_err.clone()),
     });
     Err(last_err)
+}
+
+/// 把歌词文本与封面图片内嵌进已下载的音频文件标签。
+/// 出错时仅返回 Err（调用方已决定忽略），不影响已完成的下载。
+async fn embed_tags(
+    _app: &AppHandle,
+    client: &reqwest::Client,
+    dest: &str,
+    embed_lyrics: bool,
+    embed_cover: bool,
+    lyric: Option<&str>,
+    cover_url: Option<&str>,
+) -> Result<(), String> {
+    let mut tagged = Probe::open(dest)
+        .map_err(|e| e.to_string())?
+        .read()
+        .map_err(|e| e.to_string())?;
+    let mut tag = match tagged.primary_tag() {
+        Some(t) => t.clone(),
+        None => Tag::new(tagged.primary_tag_type()),
+    };
+
+    if embed_lyrics {
+        if let Some(l) = lyric {
+            let text = l.trim();
+            if !text.is_empty() {
+                tag.insert_text(ItemKey::Lyrics, text.to_string());
+            }
+        }
+    }
+
+    if embed_cover {
+        if let Some(cu) = cover_url {
+            if let Ok(resp) = client
+                .get(cu)
+                .header(USER_AGENT, CHROME_UA)
+                .send()
+                .await
+            {
+                if let Ok(bytes) = resp.bytes().await {
+                    let pic = Picture {
+                        mime_type: infer_mime(&bytes),
+                        picture_type: PictureType::CoverFront,
+                        description: None,
+                        data: bytes.to_vec(),
+                    };
+                    tag.push_picture(pic);
+                }
+            }
+        }
+    }
+
+    tagged.insert_tag(tag);
+    tagged
+        .save_to_path(dest)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 根据图片二进制头部推断 MIME 类型（用于封面标签）。
+fn infer_mime(b: &[u8]) -> MimeType {
+    if b.len() >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF {
+        MimeType::Jpeg
+    } else if b.len() >= 8 && b.starts_with(b"\x89PNG\r\n\x1a\n") {
+        MimeType::Png
+    } else if b.len() >= 4 && &b[0..4] == b"GIF8" {
+        MimeType::Gif
+    } else if b.len() >= 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        MimeType::Webp
+    } else {
+        MimeType::Png
+    }
 }

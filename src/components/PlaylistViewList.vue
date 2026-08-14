@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import type { Playlist, Song } from '../types'
 import type { SortMode } from '../composables/usePlaylistView'
-import { OpenInExplorer, OpenSongEditor } from '@bridge/app'
+import { OpenInExplorer } from '@bridge/app'
+import { useSongEditor } from '../composables/useSongEditor'
 import { downloadSong } from '@online/lib/download'
 import WinUICheckBox from './settings/WinUICheckBox.vue'
 import {
@@ -169,8 +170,12 @@ function closeMenu() {
 }
 
 function openEditor() {
-  if (contextSong.value) OpenSongEditor(contextSong.value.path)
+  if (contextSong.value) useSongEditor().openEditor(contextSong.value)
   closeMenu()
+}
+
+function editSong(song: Song) {
+  useSongEditor().openEditor(song)
 }
 
 function openExplorer() {
@@ -295,7 +300,7 @@ const otherPlaylists = computed(() => props.playlists.filter(p => p.id !== props
           v-else
           class="action-icon"
           title="编辑"
-          @click.stop="OpenSongEditor(song.path)"
+          @click.stop="editSong(song)"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />

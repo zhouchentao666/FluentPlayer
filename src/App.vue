@@ -42,6 +42,8 @@ import type { PlayMode } from './components/player/PlayerControls.vue'
 import type { Song } from './types'
 import type { MusicInfo } from '@online/types/music'
 import type { SortMode, SortOrder } from './composables/usePlaylistView'
+import EditorApp from './EditorApp.vue'
+import { useSongEditor } from './composables/useSongEditor'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import { setPreferredQuality, setDownloadQuality } from './online/player'
 import { useMediaSession } from './composables/useMediaSession'
@@ -96,6 +98,8 @@ onUnmounted(() => {
 })
 const onlineTab = ref<OnlineTab>('playlists')
 const isLoading = ref(true)
+// 编辑歌曲信息：应用内覆盖层（不再开新窗口）
+const { editingSong, closeEditor } = useSongEditor()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const showPlayerDetail = ref(false)
 const showQueue = ref(false)
@@ -149,7 +153,7 @@ const { playlists, selectedId, updatePlaylists, updatePlaylist, selectPlaylist, 
 const currentPlaylist = computed(() => playlists.value.find(p => p.id === selectedId.value))
 const currentPlaylistSort = computed(() => currentPlaylist.value ? settings.value.playlistSorts[currentPlaylist.value.id] : undefined)
 
-const { save, load } = useConfig(playlists, settings, playbackState, isLoading)
+const { save, load, clearCache } = useConfig(playlists, settings, playbackState, isLoading)
 
 // 提供 settings 给子组件使用（使用 computed 保持响应性）
 provide('settings', settings)
@@ -537,6 +541,12 @@ onUnmounted(() => {
         <div class="boot-spinner"></div>
       </div>
     </Transition>
+    <!-- 编辑歌曲信息：应用内覆盖层（非独立窗口） -->
+    <EditorApp
+      v-if="editingSong"
+      :song="editingSong"
+      @close="closeEditor"
+    />
     <TitleBar @close="handleClose" />
     <div class="content">
       <Sidebar
@@ -578,6 +588,7 @@ onUnmounted(() => {
             v-else-if="view === 'settings'"
             :key="'settings'"
             :settings="settings"
+            :clear-cache="clearCache"
             @update:settings="updateSettings"
             @close="view = 'main'"
             @open-sources="view = 'online-sources'"

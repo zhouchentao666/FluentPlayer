@@ -3,6 +3,7 @@ import { SaveConfig, LoadConfig } from '@bridge/app'
 import { type Playlist } from '../types'
 import type { SortMode, SortOrder } from './usePlaylistView'
 import type { LocalSongMetadata } from './useLocalMetadata'
+import { clearAllCaches, setGlobalCacheLimit } from '@online/lib/cache'
 
 export type WindowEffect = 'none' | 'acrylic' | 'custom-image' | 'song-color'
 export type FullScreenBackground = 'static' | 'dynamic'
@@ -139,6 +140,12 @@ export interface AppSettings {
   pinnedOnlinePlaylists: PinnedOnlineItem[]
   /** 在线歌单的自定义排序覆盖：key 为 `${source}:${id}:${kind}`，value 为排序后的歌曲 id 数组。 */
   onlineSorts: Record<string, string[]>
+  /** 下载在线歌曲时是否把歌词内嵌进音频文件标签。 */
+  embedLyrics: boolean
+  /** 下载在线歌曲时是否把封面内嵌进音频文件标签。 */
+  embedCover: boolean
+  /** 在线数据缓存的最大容量（单位：条目数，约对应 Museek 的 maxCacheMB 概念）。 */
+  maxCacheMB: number
 }
 
 export interface ConfigPlayback {
@@ -249,7 +256,14 @@ export function useConfig(
           localMetadata: (config.settings.localMetadata as Record<string, LocalSongMetadata>) ?? {},
           pinnedOnlinePlaylists: (config.settings.pinnedOnlinePlaylists as PinnedOnlineItem[]) ?? [],
           onlineSorts: (config.settings.onlineSorts as Record<string, string[]>) ?? {},
+          embedLyrics: ((config.settings as unknown as Record<string, unknown>).embedLyrics as boolean) ?? true,
+          embedCover: ((config.settings as unknown as Record<string, unknown>).embedCover as boolean) ?? true,
+          maxCacheMB: typeof (config.settings as unknown as Record<string, unknown>).maxCacheMB === 'number' && (config.settings as unknown as Record<string, unknown>).maxCacheMB > 0
+            ? ((config.settings as unknown as Record<string, unknown>).maxCacheMB as number)
+            : 1024,
         }
+        // 让在线数据缓存容量上限跟随「最大缓存」设置生效。
+        setGlobalCacheLimit(settings.value.maxCacheMB)
       }
       if (config.playback) {
         playback.value = {
@@ -267,6 +281,16 @@ export function useConfig(
 
   watch(playlists, save, { deep: true })
   watch(settings, save, { deep: true })
+  // 最大缓存设置变化时，实时调整在线数据缓存容量上限。
+  watch(
+    () => settings.value.maxCacheMB,
+    (mb) => setGlobalCacheLimit(mb),
+  )
 
-  return { save, load }
+  /** 清理在线数据缓存（下次访问重新拉取）。 */
+  async function clearCache() {
+    clearAllCaches()
+  }
+
+  return { save, load, clearCache }
 }

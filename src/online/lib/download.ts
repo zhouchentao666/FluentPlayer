@@ -1,5 +1,6 @@
 import { resolveOnlineUrl, downloadQuality } from '../player'
 import { cdnHeadersForUrl } from './cdnHeaders'
+import { getBuiltinLyric } from './lyric'
 import type { MusicInfo } from '../types/music'
 import { toast } from '../../composables/useToast'
 import { SaveFile, DownloadFile, OpenMusicFolder, LoadConfig, DefaultMusicFolder } from '../../bridge/app'
@@ -83,7 +84,35 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
 
   toast(`开始下载：${m.name}`, 'info')
   try {
-    const res = await DownloadFile(url, dest, cdnHeadersForUrl(url))
+    // 读取内嵌歌词 / 封面设置
+    let embedLyrics = false
+    let embedCover = false
+    try {
+      const cfg = await LoadConfig()
+      const s = (cfg.settings as unknown as Record<string, unknown>) ?? {}
+      embedLyrics = s.embedLyrics !== false
+      embedCover = s.embedCover !== false
+    } catch {
+      // 读取失败则默认不内嵌
+    }
+    // 内嵌歌词：提前获取歌词文本
+    let lyricText: string | null = null
+    if (embedLyrics) {
+      try {
+        const li = await getBuiltinLyric(m)
+        lyricText = li?.lyric?.trim() || null
+      } catch {
+        lyricText = null
+      }
+    }
+    const coverUrl = embedCover ? (m.cover || null) : null
+
+    const res = await DownloadFile(url, dest, cdnHeadersForUrl(url), {
+      embedLyrics,
+      embedCover,
+      lyric: lyricText,
+      coverUrl,
+    })
     const mb = (res.size / 1024 / 1024).toFixed(1)
     toast(`已下载：${m.name}（${mb} MB）`, 'success', 5000)
     return true

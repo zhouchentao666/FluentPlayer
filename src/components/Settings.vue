@@ -24,6 +24,7 @@ import DesktopLyricSettings from './settings/DesktopLyricSettings.vue'
 
 const props = defineProps<{
   settings: AppSettings
+  clearCache: () => Promise<void> | void
 }>()
 
 const emit = defineEmits<{
@@ -59,6 +60,18 @@ async function selectDownloadFolder() {
 // 下载目录：恢复默认（系统音乐文件夹）
 function resetDownloadFolder() {
   update({ downloadFolder: '' })
+}
+
+// 清理在线数据缓存
+const clearing = ref(false)
+async function handleClearCache() {
+  if (clearing.value) return
+  clearing.value = true
+  try {
+    await props.clearCache()
+  } finally {
+    clearing.value = false
+  }
 }
 
 // 显示用：当前下载目录（为空时显示默认音乐文件夹）
@@ -196,6 +209,37 @@ function manualCheckUpdate() {
               @click="resetDownloadFolder"
             >恢复默认</button>
           </div>
+        </SettingRow>
+        <SettingRow label="内嵌歌词" description="下载在线歌曲时把歌词写入音频文件标签">
+          <ToggleSwitch
+            :model-value="settings.embedLyrics"
+            @update:model-value="value => update({ embedLyrics: value })"
+          />
+        </SettingRow>
+        <SettingRow label="内嵌封面" description="下载在线歌曲时把封面写入音频文件标签">
+          <ToggleSwitch
+            :model-value="settings.embedCover"
+            @update:model-value="value => update({ embedCover: value })"
+          />
+        </SettingRow>
+        <SettingRow label="最大缓存" description="在线数据（搜索 / 榜单 / 歌单 / 歌词 / 封面）在内存中的最大缓存条目数，超出后自动淘汰最旧项">
+          <div class="folder-row">
+            <input
+              class="cache-input"
+              type="number"
+              min="1"
+              max="100000"
+              step="64"
+              :model-value="settings.maxCacheMB"
+              @change="e => update({ maxCacheMB: Math.max(1, Math.floor(Number((e.target as HTMLInputElement).value) || 1024)) })"
+            />
+            <span class="cache-unit">条</span>
+          </div>
+        </SettingRow>
+        <SettingRow label="清理缓存" description="立即清空所有在线数据缓存，下次访问将重新拉取">
+          <button class="fluent-btn" :disabled="clearing" @click="handleClearCache">
+            {{ clearing ? '清理中…' : '清理缓存' }}
+          </button>
         </SettingRow>
         <SettingRow label="音源管理" description="导入 / 启停 / 排序自定义在线音源（LX 格式）">
           <button class="sources-entry" @click="emit('open-sources')">打开音源管理</button>
@@ -392,6 +436,23 @@ function manualCheckUpdate() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  color: var(--fluent-text-secondary, #888);
+}
+.cache-input {
+  width: 110px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--fluent-border, rgba(255, 255, 255, 0.12));
+  background: var(--fluent-bg-input, rgba(255, 255, 255, 0.06));
+  color: var(--fluent-text, #fff);
+  font-size: 13px;
+  outline: none;
+}
+.cache-input:focus {
+  border-color: var(--fluent-accent, #4f8cff);
+}
+.cache-unit {
   font-size: 13px;
   color: var(--fluent-text-secondary, #888);
 }

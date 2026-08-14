@@ -132,8 +132,22 @@ export function DownloadFile(
   url: string,
   dest: string,
   headers?: Record<string, string>,
+  options?: {
+    embedLyrics?: boolean
+    embedCover?: boolean
+    lyric?: string | null
+    coverUrl?: string | null
+  },
 ): Promise<{ size: number; path: string; duration_ms: number }> {
-  return invoke('download_file', { url, dest, headers: headers ?? null })
+  return invoke('download_file', {
+    url,
+    dest,
+    headers: headers ?? null,
+    embed_lyrics: options?.embedLyrics ?? null,
+    embed_cover: options?.embedCover ?? null,
+    lyric: options?.lyric ?? null,
+    cover_url: options?.coverUrl ?? null,
+  })
 }
 
 // ---------- 原生拖放（从系统文件管理器拖入音频文件） ----------

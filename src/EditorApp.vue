@@ -1,13 +1,15 @@
 <script lang="ts" setup>
-import { ref, onMounted, computed } from 'vue'
-import { Events, Window } from '@bridge/runtime'
+import { ref, computed, watch } from 'vue'
 import { LoadConfig, SaveConfig, ReadMetadata, ReadLyrics, OpenImageFile, ReadImageFile, EmitMetadataChanged } from '@bridge/app'
 import type { AppConfig } from '@bridge/models'
 import { localMetadata, type LocalSongMetadata } from './composables/useLocalMetadata'
 import type { Song, SongMetadata } from './types'
 import ComboBox, { type ComboBoxOption } from './components/settings/ComboBox.vue'
 
-const song = ref<Song | null>(null)
+const props = defineProps<{ song: Song }>()
+const emit = defineEmits<{ (e: 'close'): void }>()
+
+const song = computed(() => props.song)
 const loading = ref(true)
 const error = ref('')
 const theme = ref<'system' | 'light' | 'dark'>('system')
@@ -32,8 +34,6 @@ const effectiveTheme = computed(() => {
   }
   return theme.value
 })
-
-const bgColor = computed(() => effectiveTheme.value === 'light' ? '#ffffff' : '#000000')
 
 const lyricsFormats = [
   { value: 'auto', label: '自动检测', desc: '自动识别歌词格式' },
@@ -188,43 +188,51 @@ async function save() {
 }
 
 function close() {
-  Window.Close().catch(() => window.close())
+  emit('close')
 }
 
-onMounted(async () => {
-  const params = new URLSearchParams(window.location.search)
-  const path = params.get('path') || ''
-  if (!path) {
-    error.value = '未指定歌曲路径'
-    loading.value = false
-    return
-  }
-  try {
-    const config = await LoadConfig()
-    if (config.settings?.localMetadata) {
-      localMetadata.value = { ...config.settings.localMetadata as Record<string, LocalSongMetadata> }
+// 由主窗口通过 props.song 传入（应用内覆盖层，而非独立窗口）。
+// 监听 song 变化，打开不同歌曲时重新加载。
+watch(
+  () => props.song,
+  async (s) => {
+    if (!s) {
+      loading.value = false
+      return
     }
-    if (config.settings?.theme) {
-      theme.value = config.settings.theme as 'system' | 'light' | 'dark'
+    loading.value = true
+    error.value = ''
+    try {
+      const config = await LoadConfig()
+      if (config.settings?.localMetadata) {
+        localMetadata.value = { ...config.settings.localMetadata as Record<string, LocalSongMetadata> }
+      }
+      if (config.settings?.theme) {
+        theme.value = config.settings.theme as 'system' | 'light' | 'dark'
+      }
+      const loaded = await loadSong(s.path)
+      await loadFromMetadata(loaded)
+    } catch (e) {
+      error.value = '加载歌曲信息失败'
+    } finally {
+      loading.value = false
     }
-    song.value = await loadSong(path)
-    await loadFromMetadata(song.value)
-  } catch (e) {
-    error.value = '加载歌曲信息失败'
-  } finally {
-    loading.value = false
-  }
-})
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <div
-    class="editor-root"
+    class="editor-overlay"
     :data-theme="effectiveTheme"
-    :style="{ backgroundColor: bgColor }"
   >
-    <div v-if="loading" class="state">加载中...</div>
-    <div v-else-if="error" class="state">{{ error }}</div>
+    <div
+      class="editor-root"
+      :data-theme="effectiveTheme"
+    >
+      <div v-if="loading" class="state">加载中...</div>
+      <div v-else-if="error" class="state">{{ error }}</div>
     <template v-else-if="song">
       <div class="editor-header">
         <div>
@@ -290,15 +298,33 @@ onMounted(async () => {
         </div>
       </div>
     </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 18, 20, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 .editor-root {
-  width: 100vw;
-  height: 100vh;
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--fluent-bg-card, rgba(32, 32, 36, 0.96));
+  border: 1px solid var(--fluent-border, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
   color: var(--fluent-text);
   font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
