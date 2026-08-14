@@ -6,9 +6,11 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_http::reqwest;
 use tauri_plugin_http::reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
-use lofty::prelude::*;
-use lofty::picture::{MimeType, Picture};
+use lofty::config::WriteOptions;
+use lofty::file::{AudioFile, TaggedFileExt};
+use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::probe::Probe;
+use lofty::tag::{ItemKey, Tag, TagType};
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -308,11 +310,10 @@ async fn embed_tags(
                 .await
             {
                 if let Ok(bytes) = resp.bytes().await {
-                    let pic = Picture {
-                        mime_type: Some(infer_mime(&bytes)),
-                        description: None,
-                        data: bytes.to_vec().into(),
-                    };
+                    let pic = Picture::unchecked(bytes.to_vec())
+                        .pic_type(PictureType::CoverFront)
+                        .mime_type(infer_mime(&bytes))
+                        .build();
                     tag.push_picture(pic);
                 }
             }
