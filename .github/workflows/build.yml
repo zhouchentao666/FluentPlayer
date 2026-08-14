@@ -136,40 +136,45 @@ jobs:
           files: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
 
-  # iOS 构建需要 Apple 开发者证书/Provisioning Profile。
-  # 仓库未配置 APPLE_CERTIFICATE 时，所有步骤通过 step 级 if 跳过（job 不报错）。
-  # 本地无证书时可用：tauri ios build（需 macOS + Xcode + 付费开发者账号）
+  # iOS 构建需要 Apple 开发者证书 + 付费开发者账号 + macOS。
+  # 默认关闭：需在仓库 Settings > Secrets and variables > Actions > Variables 添加
+  #   BUILD_IOS = true
+  # 才会跑此 job（job 级 if 只能用 vars，不能用 secrets）。
+  # 未配置证书时，下方 run 步骤内的 shell 检查会明确报错，不会静默跳过。
   build-ios:
     needs: build-desktop
+    if: ${{ vars.BUILD_IOS == 'true' }}
     runs-on: macos-latest
     steps:
       - name: Checkout
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install Rust toolchain (with iOS targets)
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
 
       - name: Install frontend dependencies
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         run: npm install
 
       - name: Import Apple signing certificate
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          set -euo pipefail
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::${name} secret is required for iOS signing"
+              exit 1
+            fi
+          done
           CERT_PATH=$RUNNER_TEMP/build_cert.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$CERT_PATH"
@@ -181,7 +186,6 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Build iOS IPA
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -189,7 +193,6 @@ jobs:
         run: npx tauri ios build --ci
 
       - name: Upload iOS artifacts
-        if: ${{ secrets.APPLE_CERTIFICATE != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: fluentplayer-ios
