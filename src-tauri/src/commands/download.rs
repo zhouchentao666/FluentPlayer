@@ -233,7 +233,7 @@ pub async fn download_file(
                 let size = bytes.len() as u64;
                 // 下载成功后再尝试内嵌歌词 / 封面（失败不影响已完成的下载）。
                 if embed_lyrics || embed_cover || title.is_some() || artist.is_some() || album.is_some() {
-                    let _ = embed_tags(
+                    if let Err(e) = embed_tags(
                         &app,
                         &client,
                         &dest,
@@ -245,7 +245,10 @@ pub async fn download_file(
                         artist.as_deref(),
                         album.as_deref(),
                     )
-                    .await;
+                    .await
+                    {
+                        eprintln!("[download] 内嵌标签失败（不影响已下载文件）: {e}");
+                    }
                 }
                 emit_progress(DownloadProgress {
                     url: url.clone(),
@@ -331,20 +334,29 @@ async fn embed_tags(
 
     if embed_cover {
         if let Some(cu) = cover_url {
-            if let Ok(resp) = client
-                .get(cu)
-                .header(USER_AGENT, CHROME_UA)
-                .send()
-                .await
-            {
-                if let Ok(bytes) = resp.bytes().await {
-                    let pic = Picture::new_unchecked(
-                        PictureType::CoverFront,
-                        Some(infer_mime(&bytes)),
-                        None,
-                        bytes.to_vec(),
-                    );
-                    tag.push_picture(pic);
+            if let Ok(cu_url) = reqwest::Url::parse(cu) {
+                let referer = match cu_url.host_str() {
+                    Some(h) if h.contains("music.126.net") || h.contains("126.net") => "https://music.163.com/",
+                    Some(h) if h.contains("gtimg.cn") || h.contains("qq.com") => "https://y.qq.com/",
+                    Some(h) if h.contains("kugou.com") => "https://www.kugou.com/",
+                    Some(h) if h.contains("kuwo.cn") => "https://www.kuwo.cn/",
+                    Some(h) if h.contains("music.migu.cn") => "https://music.migu.cn/",
+                    _ => "",
+                };
+                let mut req = client.get(cu).header(USER_AGENT, CHROME_UA);
+                if !referer.is_empty() {
+                    req = req.header("Referer", referer);
+                }
+                if let Ok(resp) = req.send().await {
+                    if let Ok(bytes) = resp.bytes().await {
+                        let pic = Picture::new_unchecked(
+                            PictureType::CoverFront,
+                            Some(infer_mime(&bytes)),
+                            None,
+                            bytes.to_vec(),
+                        );
+                        tag.push_picture(pic);
+                    }
                 }
             }
         }

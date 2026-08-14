@@ -86,16 +86,16 @@ export async function downloadSong(m: MusicInfo, folder?: string): Promise<boole
 
   toast(`开始下载：${title}`, 'info')
   try {
-    // 读取内嵌歌词 / 封面设置
-    let embedLyrics = false
-    let embedCover = false
+    // 读取内嵌歌词 / 封面设置（读取失败或字段缺失时默认开启，与设置默认值一致）
+    let embedLyrics = true
+    let embedCover = true
     try {
       const cfg = await LoadConfig()
       const s = (cfg.settings as unknown as Record<string, unknown>) ?? {}
-      embedLyrics = s.embedLyrics !== false
-      embedCover = s.embedCover !== false
+      if (typeof s.embedLyrics === 'boolean') embedLyrics = s.embedLyrics
+      if (typeof s.embedCover === 'boolean') embedCover = s.embedCover
     } catch {
-      // 读取失败则默认不内嵌
+      // 读取失败则保持默认开启
     }
     // 内嵌歌词：提前获取歌词文本
     let lyricText: string | null = null
