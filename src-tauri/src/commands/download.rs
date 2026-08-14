@@ -6,10 +6,9 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_http::reqwest;
 use tauri_plugin_http::reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
-use lofty::picture::{MimeType, Picture, PictureType};
+use lofty::prelude::*;
+use lofty::picture::{MimeType, Picture};
 use lofty::probe::Probe;
-use lofty::tag::ItemKey;
-use lofty::{AudioFile, Tag, TagType};
 
 const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -310,10 +309,9 @@ async fn embed_tags(
             {
                 if let Ok(bytes) = resp.bytes().await {
                     let pic = Picture {
-                        mime_type: infer_mime(&bytes),
-                        picture_type: PictureType::CoverFront,
+                        mime_type: Some(infer_mime(&bytes)),
                         description: None,
-                        data: bytes.to_vec(),
+                        data: bytes.to_vec().into(),
                     };
                     tag.push_picture(pic);
                 }
@@ -323,7 +321,7 @@ async fn embed_tags(
 
     tagged.insert_tag(tag);
     tagged
-        .save_to_path(dest)
+        .save_to_path(dest, WriteOptions::default())
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -337,7 +335,7 @@ fn infer_mime(b: &[u8]) -> MimeType {
     } else if b.len() >= 4 && &b[0..4] == b"GIF8" {
         MimeType::Gif
     } else if b.len() >= 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP" {
-        MimeType::Webp
+        MimeType::Png
     } else {
         MimeType::Png
     }
