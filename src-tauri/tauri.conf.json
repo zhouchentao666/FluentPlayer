@@ -22,7 +22,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdEQzM2NUNGNjI1RUY2MEQKUldRTjlsNWl6MlhEZlcrVDM0V2YzWWUxSTNXYXprbmNzdUZQK2xYY1hKWUhQZFdBOTZVR2w3eTMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMwRkRDN0ZGRjU4MTlEOEMKUldTTW5ZSDEvOGY5TUo4WXdqdVVyZTQzZGpOZlY2N0w3dUJmT2VaeU9jMEhGT3IwcmFmVzMyQ0IK",
       "endpoints": [
         "https://github.com/Mio888888/Mio-Music/releases/latest/download/latest.json"
       ]
