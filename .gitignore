@@ -28,3 +28,5 @@ AGENTS.md
 .codex
 .agents
 /docs/superpowers/
+.tauri-signing-key
+.tauri-signing-key.pub
