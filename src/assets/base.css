@@ -1,0 +1,335 @@
+@import './icon_font/iconfont.css';
+:root {
+  --play-bottom-height: max(min(10vh, 80px), 70px);
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-nav-height: 64px;
+  --mobile-nav-bottom-gap: 10px;
+  --mobile-nav-total-height: calc(
+    var(--mobile-nav-height) + var(--mobile-safe-bottom) + var(--mobile-nav-bottom-gap)
+  );
+  --mobile-player-height: var(--play-bottom-height);
+  --mobile-player-bottom: var(--mobile-nav-total-height);
+  --mobile-content-bottom-inset: calc(
+    var(--mobile-player-height) + var(--mobile-nav-total-height)
+  );
+  --mobile-page-gutter: clamp(16px, 4vw, 24px);
+  --mobile-page-top-gutter: clamp(14px, 3.5vw, 22px);
+  --mobile-touch-target: 44px;
+}
+@font-face {
+  font-family: 'lyricfont';
+  src: url('./lyricfont.ttf');
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+ul {
+  list-style: none;
+}
+
+html {
+  font-size: min(max(1.4vw, 15px), 18px);
+  background: transparent;
+  overflow: hidden;
+  height: 100%;
+}
+body {
+  background: transparent;
+  overflow: hidden;
+  transition: background-color var(--motion-duration-standard) var(--motion-ease-standard), color var(--motion-duration-standard) var(--motion-ease-standard);
+}
+#app {
+  height: 100%;
+  width: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.75);
+  transition: background-color var(--motion-duration-standard) var(--motion-ease-standard), color var(--motion-duration-standard) var(--motion-ease-standard);
+}
+
+html:has(body #app .desktop-lyric),
+body:has(#app .desktop-lyric),
+#app:has(.desktop-lyric) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+#app:has(.desktop-lyric) {
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 16px;
+    overflow: hidden;
+    height: 100%;
+  }
+
+  body {
+    min-width: 0;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  #app {
+    height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+    overflow: hidden;
+  }
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
+body {
+  user-select: none;
+  -webkit-user-drag: none;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  text-rendering: optimizeLegibility;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全局滚动条样式 */
+* {
+  &::-webkit-scrollbar {
+    width: 0.375rem;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--td-scroll-track-color);
+    border-radius: 0.1875rem;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--td-scrollbar-color);
+    border-radius: 0.1875rem;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background: var(--td-scrollbar-hover-color);
+    }
+  }
+  /* Firefox 滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--td-scrollbar-color) var(--td-scroll-track-color);
+}
+.t-dialog__mask {
+  backdrop-filter: blur(5px);
+}
+
+@media (max-width: 768px) {
+  .t-dialog__ctx.t-dialog__ctx--fixed,
+  .t-drawer {
+    z-index: var(--mobile-overlay-layer-z) !important;
+  }
+
+  .t-dialog__ctx .t-dialog__mask,
+  .t-drawer__mask {
+    z-index: 0 !important;
+    background: var(--mobile-scrim) !important;
+    backdrop-filter: saturate(var(--mobile-glass-saturate)) blur(var(--mobile-glass-blur));
+    -webkit-backdrop-filter: saturate(var(--mobile-glass-saturate)) blur(var(--mobile-glass-blur));
+  }
+
+  .t-dialog__ctx .t-dialog__wrap {
+    z-index: 1 !important;
+    overflow: hidden;
+  }
+
+  .t-dialog__ctx .t-dialog__position {
+    min-height: 100dvh;
+    padding: calc(var(--mobile-safe-top) + 12px) var(--mobile-page-gutter) calc(var(--mobile-safe-bottom) + 12px) !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  .t-dialog__ctx .t-dialog:not(.t-dialog__fullscreen),
+  .t-drawer__content-wrapper {
+    width: min(420px, calc(100dvw - var(--mobile-page-gutter) * 2)) !important;
+    max-width: none !important;
+    max-height: min(76dvh, 620px);
+    margin: 0 !important;
+    border: 1px solid var(--mobile-glass-border) !important;
+    border-radius: var(--mobile-card-radius) !important;
+    background: var(--mobile-glass-bg-strong) !important;
+    box-shadow: var(--mobile-surface-shadow) !important;
+    backdrop-filter: saturate(var(--mobile-glass-saturate)) blur(var(--mobile-glass-blur));
+    -webkit-backdrop-filter: saturate(var(--mobile-glass-saturate)) blur(var(--mobile-glass-blur));
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .t-dialog__ctx .t-dialog:not(.t-dialog__fullscreen) {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .t-dialog__ctx .t-dialog.t-dialog--default:not(.t-dialog__fullscreen) {
+    padding: 20px 16px calc(var(--mobile-safe-bottom) + 16px) !important;
+  }
+
+  .t-dialog__ctx .t-dialog:not(.t-dialog__fullscreen)::before,
+  .t-drawer__content-wrapper::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: -8px auto 12px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: rgba(120, 120, 128, 0.36);
+  }
+
+  .t-dialog__header,
+  .t-drawer__header {
+    min-width: 0;
+    flex: 0 0 auto;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+    color: var(--td-text-color-primary);
+  }
+
+  .t-dialog__header {
+    padding-right: 0;
+  }
+
+  .t-dialog__header-content,
+  .t-drawer__header-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .t-dialog__body,
+  .t-drawer__body {
+    flex: 1 1 auto;
+    max-height: calc(76dvh - var(--mobile-safe-bottom) - 144px);
+    padding: 14px 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    -webkit-overflow-scrolling: touch;
+    color: var(--td-text-color-secondary);
+  }
+
+  .t-dialog__footer,
+  .t-drawer__footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    gap: 16px;
+    width: 100%;
+    padding: 12px 0 0;
+    border-top: 0;
+    background: transparent;
+    text-align: initial;
+    box-sizing: border-box;
+  }
+
+  .t-dialog__footer .t-button,
+  .t-drawer__footer .t-button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--mobile-touch-target);
+    margin: 0 !important;
+    border-radius: var(--mobile-control-radius);
+    font-weight: 500;
+    touch-action: manipulation;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+
+    &:active {
+      transform: scale(0.96);
+      opacity: 0.85;
+    }
+  }
+
+  .t-dialog__footer .t-button + .t-button,
+  .t-drawer__footer .t-button + .t-button {
+    margin-left: 16px !important;
+  }
+
+  .t-dialog__footer .t-button.t-button--theme-primary,
+  .t-dialog__footer .t-button.t-button--variant-base {
+    font-weight: 600;
+  }
+
+  .t-dialog__footer .t-button.t-button--theme-default,
+  .t-dialog__footer .t-button.t-button--variant-outline {
+    background: color-mix(in srgb, var(--td-bg-color-container) 70%, transparent);
+  }
+
+  .t-dialog__header .t-dialog__close,
+  .t-drawer__close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: var(--mobile-touch-target);
+    height: var(--mobile-touch-target);
+    min-width: unset;
+    min-height: unset;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--td-bg-color-container) 60%, transparent);
+    color: var(--td-text-color-secondary);
+    justify-content: center;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    touch-action: manipulation;
+
+    &:active {
+      background: color-mix(in srgb, var(--td-bg-color-container) 80%, transparent);
+      transform: scale(0.92);
+    }
+  }
+
+  .t-drawer__content-wrapper--bottom {
+    right: var(--mobile-page-gutter);
+    bottom: calc(var(--mobile-safe-bottom) + 12px);
+    left: var(--mobile-page-gutter);
+    height: min(76dvh, 620px) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .t-dialog,
+    .t-drawer__content-wrapper {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+}

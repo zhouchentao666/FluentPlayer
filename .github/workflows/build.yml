@@ -1,0 +1,345 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check version change
+        id: check
+        run: |
+          VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          TAG="v${VERSION}"
+          if git tag -l "$TAG" | grep -q .; then
+            echo "Tag $TAG already exists, skipping build"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag $TAG not found, will build"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-windows:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: yarn install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Mio Music v__VERSION__'
+          releaseBody: 'See the assets to download this version.'
+          releaseDraft: true
+          prerelease: false
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: mio-windows
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+
+  build-macos:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: yarn install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Mio Music v__VERSION__'
+          releaseBody: 'See the assets to download this version.'
+          releaseDraft: true
+          prerelease: false
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: mio-macos
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz*
+
+  build-linux:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Install frontend dependencies
+        run: yarn install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Mio Music v__VERSION__'
+          releaseBody: 'See the assets to download this version.'
+          releaseDraft: true
+          prerelease: false
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: mio-linux
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage.*
+
+  build-android:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          LATEST_NDK=$(ls -d "$ANDROID_HOME/ndk/"* 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST_NDK" ]; then
+            sdkmanager "ndk;27.0.12077973"
+            LATEST_NDK="$ANDROID_HOME/ndk/27.0.12077973"
+          fi
+          echo "NDK_HOME=$LATEST_NDK" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$LATEST_NDK" >> $GITHUB_ENV
+          echo "Using NDK: $LATEST_NDK"
+
+      - name: Install frontend dependencies
+        run: yarn install
+
+      - name: Verify committed Android project
+        run: |
+          test -f src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          test -f src-tauri/gen/android/app/build.gradle.kts
+          test -f src-tauri/gen/android/gradlew
+          grep -q 'initAndroidContext(this)' src-tauri/gen/android/app/src/main/java/com/vant/Mio/Music/MainActivity.kt
+          grep -q 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK' src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:name=".MusicService"' src-tauri/gen/android/app/src/main/AndroidManifest.xml
+
+
+      - name: Configure Android release signing
+        shell: bash
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          for name in ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD ANDROID_KEY_BASE64; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::${name} secret is required for signed Android releases"
+              exit 1
+            fi
+          done
+
+          KEYSTORE_PATH="$RUNNER_TEMP/keystore.jks"
+          KEYSTORE_PROPERTIES="$RUNNER_TEMP/keystore.properties"
+
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+
+          {
+            printf '%s\n' "keyAlias=${ANDROID_KEY_ALIAS}"
+            printf '%s\n' "password=${ANDROID_KEY_PASSWORD}"
+            printf '%s\n' "storeFile=${KEYSTORE_PATH}"
+          } > "$KEYSTORE_PROPERTIES"
+          chmod 600 "$KEYSTORE_PROPERTIES"
+          echo "ANDROID_KEYSTORE_PROPERTIES=$KEYSTORE_PROPERTIES" >> "$GITHUB_ENV"
+
+          grep -q 'signingConfig = signingConfigs.getByName("release")' src-tauri/gen/android/app/build.gradle.kts
+
+      - name: Build signed Android APK
+        id: tauri_build
+        continue-on-error: true
+        run: npx tauri android build --apk --split-per-abi --target aarch64 x86_64 --ci
+
+      - name: Debug Gradle error
+        if: steps.tauri_build.outcome == 'failure'
+        run: |
+          cd src-tauri/gen/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace 2>&1 || true
+
+      - name: Fail if build failed
+        if: steps.tauri_build.outcome == 'failure'
+        run: exit 1
+
+      - name: Verify Android project unchanged
+        run: git diff --exit-code -- src-tauri/gen ':!src-tauri/gen/android/tauri.settings.gradle'
+
+      - name: Verify signed Android APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found in Android SDK build-tools"
+            exit 1
+          fi
+
+          rm -rf android-signed-apks
+          mkdir -p android-signed-apks
+
+          verified_count=0
+          while IFS= read -r -d '' apk; do
+            relative_path="${apk#src-tauri/gen/android/app/build/outputs/apk/}"
+            case "$relative_path" in
+              *release*.apk|*/release/*.apk) ;;
+              *)
+                echo "Skipping non-release APK: $apk"
+                continue
+                ;;
+            esac
+
+            echo "Verifying signed release APK: $apk"
+            "$APKSIGNER" verify -v --print-certs "$apk"
+
+            destination="android-signed-apks/$relative_path"
+            mkdir -p "$(dirname "$destination")"
+            cp "$apk" "$destination"
+            verified_count=$((verified_count + 1))
+          done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name "*.apk" ! -name "*unsigned*" ! -name "*debug*" ! -path "*/debug/*" -print0 | sort -z)
+
+          if [ "$verified_count" -eq 0 ]; then
+            echo "::error::No verified signed release APKs were found"
+            exit 1
+          fi
+
+      - name: Upload APK to release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TAG="v${{ needs.check-version.outputs.version }}"
+          while IFS= read -r -d '' apk; do
+            echo "Uploading $apk to release $TAG"
+            for i in $(seq 1 20); do
+              if gh release upload "$TAG" "$apk" --clobber; then
+                break
+              fi
+              if [ "$i" -eq 20 ]; then
+                echo "::error::Failed to upload $apk to release $TAG"
+                exit 1
+              fi
+              echo "Retrying in 30s... ($i/20)"
+              sleep 30
+            done
+          done < <(find android-signed-apks -type f -name "*.apk" -print0 | sort -z)
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: mio-android
+          path: |
+            android-signed-apks/**/*.apk
+
+  publish-release:
+    needs: [check-version, build-windows, build-macos, build-linux]
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const version = '${{ needs.check-version.outputs.version }}'
+            const tag = `v${version}`
+            const { owner, repo } = context.repo
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 })
+            const release = releases.find((item) => item.tag_name === tag)
+            if (!release) {
+              core.setFailed(`Release ${tag} was not created`)
+              return
+            }
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.id,
+              draft: false,
+              prerelease: false,
+            })

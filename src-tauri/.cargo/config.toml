@@ -1,0 +1,11 @@
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-args=-lc++"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-args=-lc++"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-args=-lc++"]
+
+[target.i686-linux-android]
+rustflags = ["-C", "link-args=-lc++"]
