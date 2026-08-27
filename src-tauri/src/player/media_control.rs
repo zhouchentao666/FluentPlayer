@@ -12,31 +12,31 @@ impl MediaControl {
 
     pub fn update_now_playing(
         &mut self,
-        title: &str,
-        artist: &str,
-        album: &str,
-        duration_secs: f64,
-        cover_url: Option<&str>,
+        _title: &str,
+        _artist: &str,
+        _album: &str,
+        _duration_secs: f64,
+        _cover_url: Option<&str>,
     ) {
         #[cfg(target_os = "macos")]
         {
-            self.update_now_playing_macos(title, artist, album, duration_secs, cover_url);
+            self.update_now_playing_macos(_title, _artist, _album, _duration_secs, _cover_url);
         }
         #[cfg(target_os = "android")]
         {
-            self.update_now_playing_android(title, artist, album, duration_secs, cover_url);
+            self.update_now_playing_android(_title, _artist, _album, _duration_secs, _cover_url);
         }
         self.initialized = true;
     }
 
-    pub fn set_playback_state(&self, playing: bool) {
+    pub fn set_playback_state(&self, _playing: bool) {
         #[cfg(target_os = "macos")]
         {
-            self.set_playback_state_macos(playing);
+            self.set_playback_state_macos(_playing);
         }
         #[cfg(target_os = "android")]
         {
-            self.set_playback_state_android(playing);
+            self.set_playback_state_android(_playing);
         }
     }
 
