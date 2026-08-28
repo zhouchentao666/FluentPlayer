@@ -1,0 +1,79 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-latest
+          - platform: macos-latest
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Clean stale build artifacts
+        shell: pwsh
+        run: |
+          $bundle = "src-tauri/target/release/bundle"
+          if (Test-Path $bundle) { Remove-Item $bundle -Recurse -Force }
+          Write-Host "Cleaned bundle dir to avoid stale setup artifacts"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run tauri build
+
+      # 自动发布发行版：tag 推送为正式版，分支推送为预发布(nightly)
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('nightly-{0}', github.run_number) }}
+          name: "${{ startsWith(github.ref, 'refs/tags/') && format('FluentPlayer {0}', github.ref_name) || format('FluentPlayer Nightly Build #{0}', github.run_number) }}"
+          body: |
+            Automated build of FluentPlayer for Windows / Linux / macOS.
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          files: |
+            src-tauri/target/release/bundle/**/*.{exe,msi,deb,AppImage,rpm,dmg,tar.gz}

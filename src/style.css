@@ -1,0 +1,106 @@
+:root {
+    --fluent-accent: #0078d4;
+    --fluent-text: rgba(255, 255, 255, 0.95);
+    --fluent-text-secondary: rgba(255, 255, 255, 0.6);
+    --fluent-bg-glass: rgba(255, 255, 255, 0.08);
+    --fluent-bg-titlebar: rgba(0, 0, 0, 0);
+    --fluent-bg-sidebar: rgba(0, 0, 0, 0);
+    --fluent-bg-player: rgba(0, 0, 0, 0);
+    --fluent-bg-card: rgba(255, 255, 255, 0.08);
+    --fluent-bg-hover: rgba(255, 255, 255, 0.1);
+    --fluent-bg-active: rgba(255, 255, 255, 0.16);
+    --fluent-border: rgba(255, 255, 255, 0.08);
+    --fluent-input-bg: rgba(255, 255, 255, 0.1);
+    --fluent-input-border: rgba(255, 255, 255, 0.2);
+    --fluent-close-hover: rgba(196, 43, 28, 0.9);
+    --fluent-scrollbar: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] {
+    --fluent-text: rgba(0, 0, 0, 0.85);
+    --fluent-text-secondary: rgba(0, 0, 0, 0.6);
+    --fluent-bg-glass: rgba(255, 255, 255, 0.45);
+    --fluent-bg-titlebar: rgba(0, 0, 0, 0);
+    --fluent-bg-sidebar: rgba(0, 0, 0, 0);
+    --fluent-bg-player: rgba(0, 0, 0, 0);
+    --fluent-bg-card: rgba(255, 255, 255, 0.6);
+    --fluent-bg-hover: rgba(0, 0, 0, 0.06);
+    --fluent-bg-active: rgba(0, 0, 0, 0.1);
+    --fluent-border: rgba(0, 0, 0, 0.06);
+    --fluent-input-bg: rgba(255, 255, 255, 0.7);
+    --fluent-input-border: rgba(0, 0, 0, 0.15);
+    --fluent-scrollbar: rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-color-scheme: light) {
+    [data-theme="system"] {
+        --fluent-text: rgba(0, 0, 0, 0.85);
+        --fluent-text-secondary: rgba(0, 0, 0, 0.6);
+        --fluent-bg-glass: rgba(255, 255, 255, 0.45);
+        --fluent-bg-titlebar: rgba(0, 0, 0, 0);
+        --fluent-bg-sidebar: rgba(0, 0, 0, 0);
+        --fluent-bg-player: rgba(0, 0, 0, 0);
+        --fluent-bg-card: rgba(255, 255, 255, 0.6);
+        --fluent-bg-hover: rgba(0, 0, 0, 0.06);
+        --fluent-bg-active: rgba(0, 0, 0, 0.1);
+        --fluent-border: rgba(0, 0, 0, 0.06);
+        --fluent-input-bg: rgba(255, 255, 255, 0.7);
+        --fluent-input-border: rgba(0, 0, 0, 0.15);
+        --fluent-scrollbar: rgba(0, 0, 0, 0.15);
+    }
+}
+
+html {
+    background-color: transparent;
+    text-align: left;
+    color: var(--fluent-text);
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+    color: var(--fluent-text);
+    font-family: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+    background-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+@font-face {
+    font-family: "Nunito";
+    font-style: normal;
+    font-weight: 400;
+    src: local(""),
+    url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+}
+
+#app {
+    height: 100vh;
+    text-align: left;
+    background-color: transparent;
+}
+
+button, input, select {
+    font-family: inherit;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--fluent-scrollbar);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    filter: brightness(1.4);
+}

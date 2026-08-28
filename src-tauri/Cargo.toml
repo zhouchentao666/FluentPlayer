@@ -1,0 +1,37 @@
+[package]
+name = "fluentplayer"
+version = "1.0.0"
+description = "FluentPlayer - 纯离线本地音乐播放器"
+authors = ["zhouchentao"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "fluentplayer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+lofty = "0.21"
+base64 = "0.22"
+encoding_rs = "0.8"
+notify = "6"
+urlencoding = "2"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
